@@ -61,7 +61,7 @@ class PredictiveNet:
             kwargs: Lista de parámetros aceptados:
                 loopback_window: Time-steps a pasado para utilizar en la predicción (24)
                 forward_window: Time-steps a futuro a predecir (4)
-                num_lstm_layer: Número de capas LSTM (3)
+                num_lstm_layers: Número de capas LSTM (3)
                 num_lstm_cells: Número de neuronas en cada capa LSTM (128)
                 num_dense_layers: Número de capas Dense intermedias (0)
                 num_dense_cells: Número de neuronas en cada capa Dense intermedia (0)
