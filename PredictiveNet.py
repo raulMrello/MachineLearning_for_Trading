@@ -62,23 +62,23 @@ class PredictiveNet:
                 loopback_window: Time-steps a pasado para utilizar en la predicción (24)
                 forward_window: Time-steps a futuro a predecir (4)
                 num_lstm_layers: Número de capas LSTM (3)
-                num_lstm_cells: Número de neuronas en cada capa LSTM (128)
+                num_cells: Número de neuronas en cada capa (128)
                 num_dense_layers: Número de capas Dense intermedias (0)
-                num_dense_cells: Número de neuronas en cada capa Dense intermedia (0)
                 batch_size: Número de muestras del batch (32)
                 suffle_enable: Flag para hacer 'suffling' en el entrenamiento (True)
                 tvt_csv_file: Archivo csv con datos históricos train-validate-test
+				verbose: Flag de depuración
         """
         self.name = name
-        self.lbw = 24
-        self.fww = 4
-        self.nll = 3
-        self.nlc = 128
-        self.ndl = 0
-        self.ndc = 0
-        self.bs = 32
-        self.sf = True        
-        
+        self.lbw = None
+        self.fww = None
+        self.nll = None
+        self.nlc = None
+        self.ndl = None
+        self.ndc = None
+        self.bs = None
+        self.sf = None
+        _dbg = False
         self.df = None        
         self.dfapp = None
         self.num_outputs = 0
@@ -104,22 +104,31 @@ class PredictiveNet:
         for key,val in kwargs.items():        
             if key=='loopback_window': 
                 self.lbw = val
+                self.num_in_steps = val
             if key=='forward_window': 
                 self.fww = val
+                self.num_out_steps = val
             if key=='num_lstm_layers': 
                 self.nll = val
-            if key=='num_lstm_cells': 
+            if key=='num_cells': 
                 self.nlc = val
+                self.ndc = val
             if key=='num_dense_layers': 
                 self.ndl = val
-            if key=='num_dense_cells': 
-                self.ndc = val
             if key=='batch_size': 
                 self.bs = val
             if key=='suffle_enabled': 
                 self.sf = val
+            if key=='verbose':
+                if val=='full':
+                    _dbg = True
             if key=='tvt_csv_file': 
-                self.df = self.load_hist(val, sep=';', reindex_fillna=True, plot_it=False, debug_it=False)
+                if _dbg:
+                    print('Cargando histórico...')
+                self.df = self.load_hist(val, sep=';', reindex_fillna=True, plot_it=_dbg, debug_it=_dbg)
+                if _dbg:
+                    print(self.df.head())
+                    print('Incluyendo indicadores...')
                 self.dfapp = self.add_indicators(self.df, 
                                             'out',
                                             ['CLOSE'], 
@@ -128,16 +137,30 @@ class PredictiveNet:
                                             ['bollWidthRel', 'bollR', 'atr', 'SMAx3'], 
                                             remove_weekends=True, 
                                             add_applied=True, 
-                                            plot_it=False, 
+                                            plot_it=_dbg, 
                                             starts=0, 
                                             plot_len=0)
-
+                
                 self.num_outputs = 1
                 self.num_inputs = self.dfapp.shape[1] - self.num_outputs
+                if _dbg:
+                    print(self.dfapp.head())
+                    print('Parseando a supervisado con ins={}, outs={}...'.format(self.num_inputs,self.num_outputs))
                 self.sts_df = self.series_to_supervised(self.dfapp, self.num_inputs, self.num_outputs, self.lbw, self.fww)                
+                if _dbg:
+                    print(self.sts_df.head())
+                    print('Normalizando...')
                 self.sts_scaled, self.scaler = self.normalize_data(self.sts_df, None, self.name+'_scaler.save')
-                self.x_train, self.y_train, self.x_validation, self.y_validation, self.x_test, self.y_test = self.prepare_training_data(self.sts_scaled, self.bs)
-                self.model, self.callbacks_list = self.build_net() 
+                if _dbg:
+                    print(self.sts_scaled.head())
+                    print('Preparando pares XY...')
+                self.x_train, self.y_train, self.x_validation, self.y_validation, self.x_test, self.y_test = self.prepare_training_data(self.sts_scaled, self.bs, 4, 1, 0.8, _dbg)
+                if _dbg:
+                    print('Contruyendo red...')
+                self.model, self.callbacks_list = self.build_net(_dbg) 
+                if _dbg:
+                    print(self.model.summary())
+                
 
     #--------------------------------------------------------------------------------
     def load_hist(self, filename, **kwargs):
@@ -624,6 +647,21 @@ class PredictiveNet:
             return None
     
     #--------------------------------------------------------------------------------
+    def test_eval(self): 
+        """Realiza el proceso de test
+        Returns:
+            loss: Pérdida media
+            acc: Precisión media
+        """
+        test_x = self.x_test.reshape(self.x_test.shape[0], self.lbw, self.num_inputs)
+        test_y = self.y_test.reshape(self.y_test.shape[0], self.fww * self.num_outputs)            
+        scores = self.model.evaluate(test_x, test_y, batch_size=1, verbose=2)
+        loss = scores[0]
+        acc = scores[1]
+        return loss,acc
+
+		
+    #--------------------------------------------------------------------------------
     def test_rmse(self, plot_results=True, plot_from=70, plot_to=200):
         """Realiza el proceso de test
         Args:
@@ -637,9 +675,9 @@ class PredictiveNet:
         """
         test_x = self.x_test.reshape(self.x_test.shape[0], self.lbw, self.num_inputs)
         test_y = self.y_test.reshape(self.y_test.shape[0], self.fww * self.num_outputs)            
-        scores = self.model.evaluate(test_x, test_y, verbose=2)
+        scores = self.model.evaluate(test_x, test_y, batch_size=1, verbose=2)
         print('Model Loss: ', scores[0])  
-        print("Model Accuracy: %.2f%%" % (scores[1]*100))
+        print("Model Accuracy: ",scores[1])
         x_data = test_x
         y_data = test_y
 
