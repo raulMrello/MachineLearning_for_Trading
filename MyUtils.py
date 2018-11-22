@@ -18,6 +18,7 @@ if ENABLE_GOOGLE_COLAB:
 # Librerías de manejo de datos 
 import pandas as pd
 from pandas import concat
+from pandas.plotting import scatter_matrix
 import numpy as np
 
 ####################################################################################
