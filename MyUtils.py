@@ -181,59 +181,93 @@ def add_indicators(df, **kwargs):
   for p in applied:
     # Incluye el indicador de bandas bollinger 
     upperband, middleband, lowerband = talib.BBANDS(df[p], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
-    df['BB_UPPER_'+p] = upperband
-    cols.append('BB_UPPER_'+p)
-    df['BB_MIDDLE_'+p] = middleband
-    cols.append('BB_MIDDLE_'+p)
-    df['BB_LOWER_'+p] = lowerband
-    cols.append('BB_LOWER_'+p)
-    df['BB_WIDTH_'+p] = upperband - lowerband
-    cols.append('BB_WIDTH_'+p)
+    df['IND_BB_UPPER_'+p] = upperband
+    cols.append('IND_BB_UPPER_'+p)
+    df['IND_BB_MIDDLE_'+p] = middleband
+    cols.append('IND_BB_MIDDLE_'+p)
+    df['IND_BB_LOWER_'+p] = lowerband
+    cols.append('IND_BB_LOWER_'+p)
+    df['IND_BB_WIDTH_'+p] = upperband - lowerband
+    cols.append('IND_BB_WIDTH_'+p)
     bollR = (df[p] - lowerband)/(upperband - lowerband)
     bollR[np.isnan(bollR)]=0.5
     bollR[np.isinf(bollR)]=0.5
-    df['BB_PERCENT_'+p] = bollR
-    cols.append('BB_PERCENT_'+p)
+    df['IND_BB_PERCENT_'+p] = bollR
+    cols.append('IND_BB_PERCENT_'+p)
     
     # Incluye un indicador sintético basado en la anchura de bandas bollinger y su SMA50
-    df['BB_WIDTH_SMA4_'+p] = talib.SMA(df['BB_WIDTH_'+p], timeperiod=4)            
-    df['BB_WIDTH_SMA12_'+p] = talib.SMA(df['BB_WIDTH_'+p], timeperiod=12)            
-    cols.append('BB_WIDTH_SMA4_'+p)
-    cols.append('BB_WIDTH_SMA12_'+p)
+    df['IND_BB_WIDTH_SMA4_'+p] = talib.SMA(df['IND_BB_WIDTH_'+p], timeperiod=4)            
+    df['IND_BB_WIDTH_SMA12_'+p] = talib.SMA(df['IND_BB_WIDTH_'+p], timeperiod=12)            
+    cols.append('IND_BB_WIDTH_SMA4_'+p)
+    cols.append('IND_BB_WIDTH_SMA12_'+p)
     
     # Incluye varias medias móviles
-    df['SMA4_'+p] = talib.SMA(df[p],timeperiod=4)
-    df['SMA16_'+p] = talib.SMA(df[p],timeperiod=16)
-    df['SMA40_'+p] = talib.SMA(df[p],timeperiod=40)
-    cols.append('SMA4_'+p)
-    cols.append('SMA16_'+p)
-    cols.append('SMA40_'+p)
+    df['IND_SMA4_'+p] = talib.SMA(df[p],timeperiod=4)
+    df['IND_SMA16_'+p] = talib.SMA(df[p],timeperiod=16)
+    df['IND_SMA40_'+p] = talib.SMA(df[p],timeperiod=40)
+    cols.append('IND_SMA4_'+p)
+    cols.append('IND_SMA16_'+p)
+    cols.append('IND_SMA40_'+p)
     
     # Incluye MACD
     macd, macdsignal, macdhist = talib.MACD(df[p], fastperiod=12, slowperiod=26, signalperiod=9)
-    df['MACD_'+p] = macd
-    df['MACD_SIG_'+p] = macdsignal
-    df['MACD_HIST_'+p] = macdhist
-    cols.append('MACD_'+p)
-    cols.append('MACD_SIG_'+p)
-    cols.append('MACD_HIST_'+p)
+    df['IND_MACD_'+p] = macd
+    df['IND_MACD_SIG_'+p] = macdsignal
+    df['IND_MACD_HIST_'+p] = macdhist
+    cols.append('IND_MACD_'+p)
+    cols.append('IND_MACD_SIG_'+p)
+    cols.append('IND_MACD_HIST_'+p)
     
     # Incluye RSI
-    df['RSI_'+p] = talib.RSI(df[p], timeperiod=14)
-    cols.append('RSI_'+p)
+    df['IND_RSI_'+p] = talib.RSI(df[p], timeperiod=14)
+    cols.append('IND_RSI_'+p)
+    
+    # APO
+    df['IND_APO_'+p] = talib.APO(df[p], fastperiod=12, slowperiod=26, matype=0)
+    cols.append('IND_APO_'+p)
+
+    # MOMentum
+    df['IND_MOM_'+p] = talib.MOM(df[p], timeperiod=10)
+    cols.append('IND_MOM_'+p)
+
+    # ROCP
+    df['IND_ROCP_'+p] = talib.ROCP(df[p], timeperiod=10)
+    cols.append('IND_ROCP_'+p)
+
+    # ROCR
+    df['IND_ROCR_'+p] = talib.ROCR(df[p], timeperiod=10)
+    cols.append('IND_ROCR_'+p)
   
   # Ahora incluye indicadores que no dependen del componente 'applied'
   # Incluye Williams %R
-  df['WILLR'] = talib.WILLR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
-  cols.append('WILLR')
+  df['IND_WILLR'] = talib.WILLR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  cols.append('IND_WILLR')
   
   # Incluye ATR y una media móvil asociada
-  df['ATR'] = talib.ATR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
-  df['ATR_SMA4'] = talib.SMA(df['ATR'],timeperiod=4)
-  df['ATR_SMA12'] = talib.SMA(df['ATR'],timeperiod=12)
-  cols.append('ATR')
-  cols.append('ATR_SMA4')
-  cols.append('ATR_SMA12')
+  df['IND_ATR'] = talib.ATR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  df['IND_ATR_SMA4'] = talib.SMA(df['IND_ATR'],timeperiod=4)
+  df['IND_ATR_SMA12'] = talib.SMA(df['IND_ATR'],timeperiod=12)
+  cols.append('IND_ATR')
+  cols.append('IND_ATR_SMA4')
+  cols.append('IND_ATR_SMA12')
+
+  # Incluye indicador ADX
+  df['IND_ADX'] = talib.ADX(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  cols.append('IND_ADX')
+
+  # ADXR
+  df['IND_ADXR'] = talib.ADXR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  cols.append('IND_ADXR')
+
+  df['IND_CCI'] = talib.CCI(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  cols.append('IND_CCI')
+
+  df['IND_SLOWK'], df['IND_SLOWD'] = talib.STOCH(df['HIGH'], df['LOW'], df['CLOSE'], fastk_period=5, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
+  cols.append('IND_SLOWK')
+  cols.append('IND_SLOWD')
+
+  df['IND_SAR'] = talib.SAR(df['HIGH'], df['LOW'], acceleration=0, maximum=0)
+  cols.append('IND_SAR')  
     
   # Selecciona únicamente las columnas deseadas más los indicadores creados
   df = df[cols]    
