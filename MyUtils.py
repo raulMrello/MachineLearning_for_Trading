@@ -64,6 +64,19 @@ import math
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
+def static_vars(**kwargs):
+  """ Decorador para definir variables estáticas en funciones
+  """
+  def decorate(func):
+    for k in kwargs:
+      setattr(func, k, kwargs[k])
+    return func
+  return decorate
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
 def load_hist(filename, **kwargs):
   """Carga un archivo csv con datos train-validate-test
     Args:
@@ -183,9 +196,10 @@ def add_indicators(df, **kwargs):
     cols.append('BB_PERCENT_'+p)
     
     # Incluye un indicador sintético basado en la anchura de bandas bollinger y su SMA50
-    bollinger_width_sma50 = talib.SMA(df['BB_WIDTH_'+p], timeperiod=50)            
-    df['BB_WIDTH_SMA50_'+p] = df['BB_WIDTH_'+p]/(3*bollinger_width_sma50)
-    cols.append('BB_WIDTH_SMA50_'+p)
+    df['BB_WIDTH_SMA4_'+p] = talib.SMA(df['BB_WIDTH_'+p], timeperiod=4)            
+    df['BB_WIDTH_SMA12_'+p] = talib.SMA(df['BB_WIDTH_'+p], timeperiod=12)            
+    cols.append('BB_WIDTH_SMA4_'+p)
+    cols.append('BB_WIDTH_SMA12_'+p)
     
     # Incluye varias medias móviles
     df['SMA4_'+p] = talib.SMA(df[p],timeperiod=4)
@@ -213,9 +227,13 @@ def add_indicators(df, **kwargs):
   df['WILLR'] = talib.WILLR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
   cols.append('WILLR')
   
-  # Incluye ATR
+  # Incluye ATR y una media móvil asociada
   df['ATR'] = talib.ATR(df['HIGH'], df['LOW'], df['CLOSE'], timeperiod=14)
+  df['ATR_SMA4'] = talib.SMA(df['ATR'],timeperiod=4)
+  df['ATR_SMA12'] = talib.SMA(df['ATR'],timeperiod=12)
   cols.append('ATR')
+  cols.append('ATR_SMA4')
+  cols.append('ATR_SMA12')
     
   # Selecciona únicamente las columnas deseadas más los indicadores creados
   df = df[cols]    
@@ -309,33 +327,48 @@ def add_candle_patterns(df):
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def drawdown_calculator(values, do_plot = False):
+@static_vars(i=0)
+def drawdown_calculator(values, wdow, just_value = 3, do_plot = False):
   """ Calcula para una serie de valores: la variación de principio a fin, y los
       drawdown_bearish y drawdown_bullish máximos.
+      Utiliza la variables interna 'drawdown_calculator.i' como índice incremental
+      para realizar el cálculo con una 'lambda'
       Args:
         values  : Array de datos a evaluar
+        wdow    : Muestras del array 'values' para operación incrementeal en 'lambda'
         do_plot : Flag para habilitar el pintado
       Returns:
         Variación, drawdown_bullish, drawdown_bearish
   """
+  v = values[drawdown_calculator.i:drawdown_calculator.i+wdow]
+  drawdown_calculator.i += 1
   try:
     # posición del máximo
-    ibull = np.argmax(np.maximum.accumulate(values) - values) 
+    ibull = np.argmax(np.maximum.accumulate(v) - v) 
     # posición del mínimo
-    jbull = np.argmax(values[:ibull]) # start of period
+    jbull = np.argmax(v[:ibull]) # start of period
   except:
     ibull,jbull = 0,0
   try:  
-    ibear = np.argmax(values - np.minimum.accumulate(values))
-    jbear = np.argmin(values[:ibear])
+    ibear = np.argmax(v - np.minimum.accumulate(v))
+    jbear = np.argmin(v[:ibear])
   except:
     ibear,jbear = 0,0
 
   if do_plot:
-    plt.plot(values)
-    plt.plot([ibull, jbull], [values[ibull], values[jbull]], 'o', color='Green', markersize=10)    
-    plt.plot([ibear, jbear], [values[ibear], values[jbear]], 'x', color='Red', markersize=10)
-  return (values[-1] - values[0]), (values[ibull] - values[jbull]), (values[ibear] - values[jbear])  
+    plt.plot(v)
+    plt.plot([ibull, jbull], [v[ibull], v[jbull]], 'o', color='Green', markersize=10)    
+    plt.plot([ibear, jbear], [v[ibear], v[jbear]], 'x', color='Red', markersize=10)
+  
+  if just_value is 0:
+    return (v[-1] - v[0])
+  elif just_value is 1:
+    return (v[ibull] - v[jbull])
+  elif just_value is 2:
+    return (v[ibear] - v[jbear])
+  else:
+    return (v[-1] - v[0]), (v[ibull] - v[jbull]), (v[ibear] - v[jbear])  
+  
 
 
 
@@ -427,3 +460,35 @@ def visualize_input(df, row, num_inputs, num_in_steps):
     plt.subplot(num_inputs, 1, i+1)
     plt.plot(data)
     plt.title(legend.split('(')[0], y=0.5, loc='right')
+
+  
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def plot_heatmap(title, df, wh):
+  fig = plt.figure(figsize = wh)
+  ax = fig.add_subplot(111)
+  cax = ax.matshow(df.corr(), vmin=-1, vmax=1)
+  fig.colorbar(cax)
+  ticks = np.arange(0,len(df.columns),1)
+  ax.set_xticks(ticks)
+  ax.set_yticks(ticks)
+  ax.set_xticklabels(df.columns)
+  ax.set_yticklabels(df.columns)
+  for i in range(len(df.columns)):
+    for j in range(len(df.columns)):
+        text = ax.text(j, i, "{:.4g}".format(df.corr().values[i, j]), ha="center", va="center", color="black")
+
+  
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def solve_outlier(x, mean, sd):
+  res = x
+  if x > (mean + (2 * sd)):
+    res = mean + (2 * sd)
+  elif x < (mean - (2 * sd)):
+    res = mean - (2 * sd)
+  return res        
