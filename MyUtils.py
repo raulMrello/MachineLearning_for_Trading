@@ -27,6 +27,15 @@ import sklearn
 from sklearn import preprocessing
 from sklearn import metrics as sk
 from sklearn.externals import joblib
+from sklearn.pipeline import make_pipeline
+from sklearn.ensemble.gradient_boosting import GradientBoostingClassifier
+from sklearn.feature_selection import SelectKBest
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import cross_val_score
+from sklearn.feature_selection import SelectFromModel
+from sklearn.ensemble import RandomForestClassifier
+
 import keras
 from keras.models import Model, Sequential
 from keras.layers import Input, LSTM, Dense, Dropout, BatchNormalization
@@ -59,6 +68,29 @@ import time
 import os
 import sys
 import math
+import pickle
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def save_to_file(obj, filepath):
+  with open(filepath, 'wb') as f:
+    try:
+      pickle.dump(obj, f)
+    except MemoryError as error:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      print('type:', exc_type, 'value:', exc_value)
+        
+        
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def load_from_file(filepath):
+  with open(filepath, 'rb') as f:
+    obj = pickle.load(f)        
+  return obj   
 
 
 #--------------------------------------------------------------------------------
@@ -266,8 +298,8 @@ def add_indicators(df, **kwargs):
   cols.append('IND_SLOWK')
   cols.append('IND_SLOWD')
 
-  df['IND_SAR'] = talib.SAR(df['HIGH'], df['LOW'], acceleration=0, maximum=0)
-  cols.append('IND_SAR')  
+  #df['IND_SAR'] = talib.SAR(df['HIGH'], df['LOW'], acceleration=0, maximum=0)
+  #cols.append('IND_SAR')  
     
   # Selecciona únicamente las columnas deseadas más los indicadores creados
   df = df[cols]    
@@ -422,6 +454,7 @@ def series_to_supervised(df, num_inputs, num_outputs, n_in=1, n_out=1, dropnan=T
       Dataframe
   """
   # obtengo el dataframe con las entradas y las salidas
+  df = df.copy()
   df_in = df[[x for x in df.columns if df.columns.get_loc(x) < num_inputs]]
   df_out = df[[x for x in df.columns if df.columns.get_loc(x)>=num_inputs]]
 
@@ -454,10 +487,11 @@ def series_to_supervised(df, num_inputs, num_outputs, n_in=1, n_out=1, dropnan=T
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def normalize_data(df, in_cols_to_scale, out_cols_to_scale, csv_to_save=None, scaler_to_save=None):
+def normalize_data(df, feat_range = (-1,1), csv_to_save=None, scaler_to_save=None):
   """Normaliza los datos utilizando un scaler
   Args:
       df: DataFrame origen
+      feat_range : Rango de normalización
       csv_to_save: Archivo para guardar csv normalizado (None)
       scaler_to_save: Archivo para guardar el scaler (None)
   Returns:
@@ -467,7 +501,7 @@ def normalize_data(df, in_cols_to_scale, out_cols_to_scale, csv_to_save=None, sc
   sts_src = df.copy()
   sts_src_values = sts_src.values
   sts_src_values = sts_src_values.astype('float32')
-  scaler = preprocessing.MinMaxScaler(feature_range=(-1, 1))
+  scaler = preprocessing.MinMaxScaler(feature_range=feat_range)
   sts_src_scaled_values = scaler.fit_transform(sts_src_values)
   sts_scaled = pd.DataFrame(data=sts_src_scaled_values, columns=sts_src.columns, index=sts_src.index)        
   if csv_to_save is not None:
@@ -477,6 +511,215 @@ def normalize_data(df, in_cols_to_scale, out_cols_to_scale, csv_to_save=None, sc
   return sts_scaled,scaler
 
   
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def prepare_training_data(df, in_feats, ratio):
+  """Crea los conjuntos de entrenamiento-validación-test y sus pares XY
+    Args:
+      df: DataFrame origen con los datos normalizados
+      in_feats : Entradas
+      out_feats: Salidas
+      ratio  : Ratio de división de entrenamiento - test
+  Returns:
+      Pares XY de: train, test
+  """
+  train_len = int(df.shape[0] * ratio)
+  dfxy = df.copy()
+  x_train = dfxy.values[:train_len,:in_feats]
+  y_train = dfxy.values[:train_len,in_feats:]
+  x_test = dfxy.values[train_len:,:in_feats]
+  y_test = dfxy.values[train_len:,in_feats:]  
+  return x_train, y_train, x_test, y_test
+  
+        
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile):
+  """Crea la red neuronal tipo LSTM
+    Args:
+      num_inputs : Número de entradas
+      lbw : timesteps del pasado
+      num_outputs : Número de salidas
+      fww : timesteps a predecir
+      nll : Número de capas LSTM
+      ndl : Número de capas Dense
+      nlc : Número de neuronas por capa lstm
+      ndc : Número de neuronas por capa Dense
+      wfile : Archivo de pesos
+    Returns:
+      model,callback_list
+  """
+  # Inicio definiendo un modelo secuencial
+  model = Sequential()
+
+  sequence_flag = False
+  if nll > 1:
+      sequence_flag = True
+
+  # capa de entrada, debe especificar formato 'input_shape'
+  model.add(LSTM(nlc, return_sequences=sequence_flag, input_shape=(lbw, num_inputs)))
+  #model.add(BatchNormalization())
+  model.add(Dropout(0.20))
+
+  for i in range(1, nll, 1):
+      if i == nll-1:
+        sequence_flag = False
+      # capas intermedias
+      model.add(LSTM(nlc, return_sequences=sequence_flag))
+      #model.add(BatchNormalization())
+      model.add(Dropout(0.20))
+
+  for i in range(1, ndl, 1):
+      model.add(Dense(ndc, activation='linear'))    
+      
+  # la capa de salida es una capa Dense con tantas salidas como timesteps a predecir con activación lineal     
+  model.add(Dense(num_outputs * fww, activation='linear'))
+
+  # compilo con optimizador Adam y pérdida 'mse'
+  model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])   
+
+  checkpoint = ModelCheckpoint(wfile, monitor='val_acc', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
+  callbacks_list = [checkpoint]
+  
+  # si existe un modelo previo, lo carga
+  if wfile is not None:
+      try:
+          model.load_weights(wfile)
+          print('Loaded weights from file: ', wfile)
+      except:
+          print('No weights file to load')
+
+  model.summary()
+  return model, callbacks_list
+  
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks, batchsize, val_ratio, shuffle, plot_results=False):
+  """Realiza el proceso de entrenamiento y validación
+  Args:
+      model : Modelo a entrenar
+      x_train : Features de entrada
+      y_train : Features de salida
+      num_inputs : Nº de entradas
+      num_in_steps  : Nº de timesteps pasados
+      num_epochs    : Nº de épocas de entrenamiento
+      callbacks     : Lista de callbacks
+      batchsize     : Tamaño del batch
+      val_ratio     : Tamaño de la partición de validación
+      shuffle       : Flag para barajar los pares
+      plot_result   : Flag para visualizar el resultado
+  Returns:
+      History result
+  """
+  try:
+    x = x_train.reshape(x_train.shape[0], num_in_steps, num_inputs)
+    y = y_train
+    history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, validation_split=val_ratio, verbose=2, shuffle=shuffle) 
+    if plot_results:
+      # visualizo el resultado de la ejecución de la celda actual
+      plt.subplot(1,2,1)
+      plt.plot(history.history['loss'])
+      plt.plot(history.history['val_loss'])
+      plt.legend(['loss', 'val_loss'], loc='upper right')
+      plt.subplot(1,2,2)
+      plt.plot(history.history['acc'])
+      plt.plot(history.history['val_acc'])
+      plt.legend(['acc', 'val_acc'], loc='upper right')
+    return history
+  except:
+    print('Model fit Exception:', sys.exc_info()[0])
+    return None
+  
+        
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def test_evaluation(model, x_test, y_test, num_inputs, num_in_steps):
+  """ Evalúa con la partición de test 
+      Args:
+      model : Modelo a testear
+      x_test : Conjunto de entradas
+      y_test : Conjunto de salidas objetivo
+      num_inputs : Nº de entradas
+      num_in_steps : Nº de steps pasados a tener en cuenta
+      Returns:
+      scores = [loss, acc] o [loss] o [acc], etc...
+  """
+  scores = model.evaluate(x_test.reshape(x_test.shape[0], num_in_steps, num_inputs), y_test, batch_size=1, verbose=2)
+  return scores
+  
+        
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def compute_score(classifier, X, y, scoring='accuracy'):
+  """ Computa el score de un clasificador mediante la librería scikit-learn
+  """
+  xval = cross_val_score(classifier, X, y, cv = 5, scoring=scoring)
+  return np.mean(xval)        
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def test_rmse(model, x_test, y_test, num_inputs, num_in_steps, num_outputs, num_out_steps, scaler, cb_out_builder, plot_results=False):
+  """Realiza el proceso de test
+  Args:
+      model : Modelo a testear
+      x_test : Conjunto de entradas
+      y_test : Conjunto de salidas objetivo
+      num_inputs : Nº de entradas
+      num_in_steps : Nº de steps pasados a tener en cuenta
+      num_outputs : Nº de salidas
+      num_out_steps : Nº de steps a predecir
+      scaler : scaler para deshacer el scaling
+      cb_out_builder : Callback para generar salidas reales y, yhat
+      plot_results: Visualiza resultados
+  Returns:
+      scores = [loss,acc], target, pred
+  """
+  x = x_test.reshape(x_test.shape[0], num_in_steps, num_inputs)
+  y = y_test
+  scores = model.evaluate(x, y, batch_size=1, verbose=2)
+  print('Model Loss: ', scores[0])  
+  print("Model Accuracy: ",scores[1])
+  x_data = x
+  y_data = y
+
+  rmse = list()
+  target,pred=list(),list()
+  for sample in range(x_data.shape[0]):
+    # Realizo predicción del primer conjunto de datos
+    x = x_data[sample].reshape(1, num_in_steps, num_inputs)
+    y = y_data[sample].reshape(1, num_out_steps * num_outputs)
+    predictions = model.predict(x, batch_size=1,verbose=0)
+
+    # deshago el scaling
+    xy_values = np.concatenate((x.reshape(1, x.shape[1]*x.shape[2]), y),axis=1)
+    xy_values = scaler.inverse_transform(xy_values)
+    xyhat_values = np.concatenate((x.reshape(1, x.shape[1]*x.shape[2]), predictions),axis=1)
+    xyhat_values = scaler.inverse_transform(xyhat_values)
+    
+    # Calculo el error RMSE
+    yvalues,yhat_values = cb_out_builder(xy_values[0], xyhat_values[0])
+    rmse_val = math.sqrt(sk.mean_squared_error(yvalues, yhat_values, multioutput = 'uniform_average'))
+    rmse.append(rmse_val)
+    target.append(yvalues)
+    pred.append(yhat_values)    
+  
+  if plot_results:        
+    plt.plot(np.asarray(rmse))    
+    plt.legend(['RMSE'])    
+  return scores, target, pred
+
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
@@ -514,7 +757,29 @@ def plot_heatmap(title, df, wh):
     for j in range(len(df.columns)):
         text = ax.text(j, i, "{:.4g}".format(df.corr().values[i, j]), ha="center", va="center", color="black")
 
-  
+    
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def plot_feature(df, features, row, n_in):
+  """ Visualiza n_in timesteps de un feature en un dataframe y para una muestra n
+      Args:
+      df : Dataframe que contiene el feature
+      row: Muestra que visualizar
+      n_in:Número de timesteps que se utiliza en la variable
+  """
+  array_of_values = []
+  for f in features:    
+    values = []  
+    for i in range(n_in):    
+      col = f+'(t'+str(-n_in+i)+')'
+      values.append(df.iloc[row][col])
+    values.append(df.iloc[row][f+'(t)'])
+    array_of_values.append(values)
+    plt.plot(values)
+  plt.legend(features)
+  return array_of_values
+    
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
