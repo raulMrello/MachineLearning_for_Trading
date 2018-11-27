@@ -538,7 +538,7 @@ def prepare_training_data(df, in_feats, ratio):
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile):
+def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile, verbose=0):
   """Crea la red neuronal tipo LSTM
     Args:
       num_inputs : Número de entradas
@@ -550,6 +550,7 @@ def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile)
       nlc : Número de neuronas por capa lstm
       ndc : Número de neuronas por capa Dense
       wfile : Archivo de pesos
+      verbose : Muestra un resumen si > 0
     Returns:
       model,callback_list
   """
@@ -589,18 +590,21 @@ def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile)
   if wfile is not None:
       try:
           model.load_weights(wfile)
-          print('Loaded weights from file: ', wfile)
+          if verbose > 0:
+            print('Loaded weights from file: ', wfile)
       except:
-          print('No weights file to load')
+          if verbose > 0:
+            print('No weights file to load')
 
-  model.summary()
+  if verbose > 0:
+    model.summary()
   return model, callbacks_list
   
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks, batchsize, val_ratio, shuffle, plot_results=False):
+def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks, batchsize, val_ratio=0, shuffle=False, plot_results=False):
   """Realiza el proceso de entrenamiento y validación
   Args:
       model : Modelo a entrenar
@@ -620,7 +624,11 @@ def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks
   try:
     x = x_train.reshape(x_train.shape[0], num_in_steps, num_inputs)
     y = y_train
-    history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, validation_split=val_ratio, verbose=2, shuffle=shuffle) 
+    history = None
+    if val_ratio != 0:
+      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, validation_split=val_ratio, verbose=2, shuffle=shuffle) 
+    else:
+      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, verbose=2, shuffle=shuffle) 
     if plot_results:
       # visualizo el resultado de la ejecución de la celda actual
       plt.subplot(1,2,1)
@@ -718,7 +726,7 @@ def test_rmse(model, x_test, y_test, num_inputs, num_in_steps, num_outputs, num_
   if plot_results:        
     plt.plot(np.asarray(rmse))    
     plt.legend(['RMSE'])    
-  return scores, target, pred
+  return scores, target, pred, rmse
 
 
 #--------------------------------------------------------------------------------
