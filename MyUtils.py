@@ -27,14 +27,11 @@ import sklearn
 from sklearn import preprocessing
 from sklearn import metrics as sk
 from sklearn.externals import joblib
-from sklearn.pipeline import make_pipeline
-from sklearn.ensemble.gradient_boosting import GradientBoostingClassifier
-from sklearn.feature_selection import SelectKBest
-from sklearn.model_selection import StratifiedKFold
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import cross_val_score
-from sklearn.feature_selection import SelectFromModel
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold, KFold
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.metrics import r2_score
 
 import keras
 from keras.models import Model, Sequential
@@ -322,10 +319,12 @@ def add_indicators(df, **kwargs):
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 def add_candle_patterns(df):
-  """ Agrega todos los identificadores de patrones de velas de la librería TALIB
+  """ Agrega todos los identificadores de patrones de velas de la librería TALIB. 
+      Comento aquellos que generalmente se producen en muy poca cantidad y por lo
+      tanto no son representativos durante el entrenamiento del modelo
   """
   df = df.copy()
-  df['CDL2CROWS'] = talib.CDL2CROWS(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  #df['CDL2CROWS'] = talib.CDL2CROWS(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDL3BLACKCROWS'] = talib.CDL3BLACKCROWS(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDL3INSIDE'] = talib.CDL3INSIDE(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDL3LINESTRIKE'] = talib.CDL3LINESTRIKE(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
@@ -335,10 +334,10 @@ def add_candle_patterns(df):
   df['CDLABANDONEDBABY'] = talib.CDLABANDONEDBABY(df.OPEN, df.HIGH, df.LOW, df.CLOSE, 0)
   df['CDLADVANCEBLOCK'] = talib.CDLADVANCEBLOCK(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLBELTHOLD'] = talib.CDLBELTHOLD(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
-  df['CDLBREAKAWAY'] = talib.CDLBREAKAWAY(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  #df['CDLBREAKAWAY'] = talib.CDLBREAKAWAY(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLCLOSINGMARUBOZU'] = talib.CDLCLOSINGMARUBOZU(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
-  df['CDLCONCEALBABYSWALL'] = talib.CDLCONCEALBABYSWALL(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
-  df['CDLCOUNTERATTACK'] = talib.CDLCOUNTERATTACK(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  #df['CDLCONCEALBABYSWALL'] = talib.CDLCONCEALBABYSWALL(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  #df['CDLCOUNTERATTACK'] = talib.CDLCOUNTERATTACK(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLDARKCLOUDCOVER'] = talib.CDLDARKCLOUDCOVER(df.OPEN, df.HIGH, df.LOW, df.CLOSE, 0)
   df['CDLDOJI'] = talib.CDLDOJI(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLDOJISTAR'] = talib.CDLDOJISTAR(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
@@ -361,7 +360,7 @@ def add_candle_patterns(df):
   df['CDLINVERTEDHAMMER'] = talib.CDLINVERTEDHAMMER(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLKICKING'] = talib.CDLKICKING(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLKICKINGBYLENGTH'] = talib.CDLKICKINGBYLENGTH(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
-  df['CDLLADDERBOTTOM'] = talib.CDLLADDERBOTTOM(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  #df['CDLLADDERBOTTOM'] = talib.CDLLADDERBOTTOM(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLLONGLEGGEDDOJI'] = talib.CDLLONGLEGGEDDOJI(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLLONGLINE'] = talib.CDLLONGLINE(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLMARUBOZU'] = talib.CDLMARUBOZU(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
@@ -386,6 +385,17 @@ def add_candle_patterns(df):
   df['CDLUNIQUE3RIVER'] = talib.CDLUNIQUE3RIVER(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLUPSIDEGAP2CROWS'] = talib.CDLUPSIDEGAP2CROWS(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
   df['CDLXSIDEGAP3METHODS'] = talib.CDLXSIDEGAP3METHODS(df.OPEN, df.HIGH, df.LOW, df.CLOSE)
+  # normalizo en el rango (-1,1)
+  drop_cols = []
+  for c in df.columns:
+    if c.startswith('CDL'): 
+      m = max(abs(df[c].max()),abs(df[c].min()))
+      if m != 0:
+        df[c] /= m
+      else:
+        drop_cols.append(c)
+  # elimino las columnas que no aportan ninguna señal
+  df.drop(columns=drop_cols, inplace = True)
   return df
 
 
@@ -532,13 +542,13 @@ def prepare_training_data(df, in_feats, ratio):
   x_test = dfxy.values[train_len:,:in_feats]
   y_test = dfxy.values[train_len:,in_feats:]  
   return x_train, y_train, x_test, y_test
-  
-        
+
+
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile, verbose=0):
+def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile, loss='mae', metrics=['accuracy'], verbose=0):
   """Crea la red neuronal tipo LSTM
     Args:
       num_inputs : Número de entradas
@@ -550,6 +560,8 @@ def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile,
       nlc : Número de neuronas por capa lstm
       ndc : Número de neuronas por capa Dense
       wfile : Archivo de pesos
+      loss: Tipo de pérdida utilizada. Por defecto 'mae' ya que he visto que funciona mejor que 'mse'
+      metrics : Tipo de métrica utilizada
       verbose : Muestra un resumen si > 0
     Returns:
       model,callback_list
@@ -581,7 +593,7 @@ def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile,
   model.add(Dense(num_outputs * fww, activation='linear'))
 
   # compilo con optimizador Adam y pérdida 'mse'
-  model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])   
+  model.compile(optimizer='adam', loss=loss, metrics=metrics)   
 
   checkpoint = ModelCheckpoint(wfile, monitor='val_acc', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
   callbacks_list = [checkpoint]
@@ -662,8 +674,57 @@ def test_evaluation(model, x_test, y_test, num_inputs, num_in_steps):
   """
   scores = model.evaluate(x_test.reshape(x_test.shape[0], num_in_steps, num_inputs), y_test, batch_size=1, verbose=2)
   return scores
-  
-        
+
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def build_random_forest_regressor(x_train, y_train, parameter_grid, cv=5, n_jobs=4, verbose=1): 
+  """ Crea un RandomForestRegressor a partir de un grid paramétrico con validación cruzada
+      Args:
+      x_train : Entradas del Conjunto de entrenamiento [num_samples, num_features]
+      y_train : Salidas del Conjunto de entrenamiento [num_samples, num_outputs]
+      parameter_grid : Dict con las opciones de búsqueda de hyperparámetros. Ej:
+                {
+                 'max_depth' : [4, 6, 8],
+                 'n_estimators': [100, 50, 10],
+                 'max_features': ['sqrt', 'auto', 'log2'],
+                 'min_samples_split': [2, 3, 10],
+                 'min_samples_leaf': [1, 3, 10],
+                 'bootstrap': [True, False],
+                }
+      cv : Número de modelos en la evaluación cruzada
+      n_jobs : Número de procesos en paralelo para realizar la búsqueda
+      verbose : Indicador de logging
+  """
+  # Configuro la búsqueda de hyperparámetros
+  model = GridSearchCV(RandomForestRegressor(), parameter_grid, cv=cv, n_jobs=n_jobs, verbose=verbose)
+
+  # Inicio la búsqueda
+  model.fit(x_train, y_train)
+  if verbose > 0:
+    print('Best score: {}'.format(model.best_score_))
+    print('Best parameters: {}'.format(model.best_params_))       
+  return model  
+
+
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def predict_random_forest_regressor(model, x):
+  """ Realiza una predicción para un conjunto de datos
+      Args:
+      model : Modelo RandomForestRegressor()
+      x : Datos de entrada [num_samples, num_features]
+  """
+  # Evaluación del modelo con la partición de test
+  rfc = RandomForestRegressor(**model.best_params_)
+  yhat = rfc.predict(x)
+  return yhat
+
+
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
