@@ -709,23 +709,6 @@ def build_random_forest_regressor(x_train, y_train, parameter_grid, cv=5, n_jobs
   return model  
 
 
-
-#--------------------------------------------------------------------------------
-#--------------------------------------------------------------------------------
-#--------------------------------------------------------------------------------
-def predict_random_forest_regressor(model, x):
-  """ Realiza una predicción para un conjunto de datos
-      Args:
-      model : Modelo RandomForestRegressor()
-      x : Datos de entrada [num_samples, num_features]
-  """
-  # Evaluación del modelo con la partición de test
-  rfc = RandomForestRegressor(**model.best_params_)
-  yhat = rfc.predict(x)
-  return yhat
-
-
-
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
