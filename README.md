@@ -23,6 +23,10 @@ Para la siguiente fase, la idea es utilizar una red A3C (aprendizaje por refuerz
 ## Changelog
 
 ----------------------------------------------------------------------------------------------
+##### 03.12.2018 ->commit:"Descarto RFR y reorganizo directorios"
+- [x] Descarto el RFR, reorganizo la estructura interna de los directorios y continúo con el filtro post-predictor.
+
+----------------------------------------------------------------------------------------------
 ##### 30.11.2018 ->commit:"Implementación del RandomForestRegressor"
 - [x] Implemenento el RFC y estoy a la espera de que termine el 'fitting' para luego evaluarlo. Lleva ya más de 30 horas...
 
