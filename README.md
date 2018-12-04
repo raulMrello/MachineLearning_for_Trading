@@ -23,6 +23,13 @@ Para la siguiente fase, la idea es utilizar una red A3C (aprendizaje por refuerz
 ## Changelog
 
 ----------------------------------------------------------------------------------------------
+##### 04.12.2018 ->commit:"Iniciando diseño A3C-LSTM"
+- [x] Descarto filtro post-predictor ya que no introduce ninguna mejora.
+- [x] Creo notebook para generar dataframe de predicciones y generar CSV para el Agente A3C
+- [x] Inicio el notebook de implementación del agente A3C-LSTM
+- [x] Creo RAR files para archivos CSV pesados y extraigo los CSV de la copia de backup
+
+----------------------------------------------------------------------------------------------
 ##### 03.12.2018 ->commit:"Descarto RFR y reorganizo directorios"
 - [x] Descarto el RFR, reorganizo la estructura interna de los directorios y continúo con el filtro post-predictor.
 

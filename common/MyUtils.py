@@ -114,10 +114,12 @@ def load_hist(filename, **kwargs):
         sep: tipo de separador (,)
         remove_weekends: Flag para borrar datos del fin de semana sin cotización
         remove_index: Flag para borrar el índice y obtener el timestamp como una nueva columna
+        freq : Frecuencia del rango horario 1H, 1M, ...
   Returns:
     Dataframe
   """
   sep = ','
+  freq="1H"
   remove_weekends=False
   remove_index=False
   if kwargs is not None:
@@ -128,6 +130,8 @@ def load_hist(filename, **kwargs):
         remove_weekends = value
       if key == 'remove_index': 
         remove_index = value
+      if key == 'freq': 
+        freq = value
 
   df = pd.read_csv(filename, sep=sep) 
   # crea una nueva columna de timestamp uniendo date & time y crea columnas para el día de la semana, el día del mes, el mes y la hora del día actual 
@@ -135,7 +139,7 @@ def load_hist(filename, **kwargs):
   df['timestamp'] = df['timestamp'].map(lambda x: datetime.datetime.strptime(x, '%Y.%m.%d %H:%M:%S'))  
   df['timestamp'] = pd.to_datetime(df['timestamp'])
   df.set_index('timestamp', inplace=True)
-  df = df.reindex(pd.date_range(df.index[0], df.index[-1], freq="1H"))
+  df = df.reindex(pd.date_range(df.index[0], df.index[-1], freq=freq))
   # elimina los valores nulos y los rellena con el valor anterior
   df.fillna(method='ffill', inplace =True)
   df['WEEKDAY'] = df.index.dayofweek
@@ -525,6 +529,26 @@ def normalize_data(df, feat_range = (-1,1), csv_to_save=None, scaler_to_save=Non
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
+def denormalize_data(df, scaler):
+  """DeNormaliza los datos utilizando un scaler
+  Args:
+      df: DataFrame origen
+      scaler : Scaler de de-normalización
+  Returns:
+      Dataframe denormalizado
+  """
+  sts_src = df.copy()
+  sts_src_values = sts_src.values
+  sts_src_values = sts_src_values.astype('float32')
+  sts_src_unscaled_values = scaler.inverse_transform(sts_src_values)
+  sts_unscaled = pd.DataFrame(data=sts_src_unscaled_values, columns=sts_src.columns, index=sts_src.index)        
+  return sts_unscaled
+
+  
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
 def prepare_training_data(df, in_feats, ratio):
   """Crea los conjuntos de entrenamiento-validación-test y sus pares XY
     Args:
@@ -616,7 +640,7 @@ def build_lstm_net(num_inputs, lbw, num_outputs, fww, nll, ndl, nlc, ndc, wfile,
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
-def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks, batchsize, val_ratio=0, shuffle=False, plot_results=False):
+def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks, batchsize, val_ratio=0, shuffle=False, plot_results=False, verbose=0):
   """Realiza el proceso de entrenamiento y validación
   Args:
       model : Modelo a entrenar
@@ -630,6 +654,7 @@ def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks
       val_ratio     : Tamaño de la partición de validación
       shuffle       : Flag para barajar los pares
       plot_result   : Flag para visualizar el resultado
+      verbose       : 0, 1, 2
   Returns:
       History result
   """
@@ -638,9 +663,9 @@ def fit(model, x_train, y_train, num_inputs, num_in_steps, num_epochs, callbacks
     y = y_train
     history = None
     if val_ratio != 0:
-      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, validation_split=val_ratio, verbose=2, shuffle=shuffle) 
+      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, validation_split=val_ratio, verbose=verbose, shuffle=shuffle) 
     else:
-      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, verbose=2, shuffle=shuffle) 
+      history = model.fit(x, y, epochs=num_epochs, batch_size=batchsize, callbacks=callbacks, verbose=verbose, shuffle=shuffle) 
     if plot_results:
       # visualizo el resultado de la ejecución de la celda actual
       plt.subplot(1,2,1)
