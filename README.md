@@ -23,6 +23,11 @@ Para la siguiente fase, la idea es utilizar una red A3C (aprendizaje por refuerz
 ## Changelog
 
 ----------------------------------------------------------------------------------------------
+##### 05.12.2018 ->commit:"Diseñando gym-environment"
+- [x] Inicio el desarrollo del Gym-env que me sirva de referencia para evaluar al agente A3C.
+- [x] Clono varios repos en ./gym 
+
+----------------------------------------------------------------------------------------------
 ##### 04.12.2018 ->commit:"Iniciando diseño A3C-LSTM"
 - [x] Descarto filtro post-predictor ya que no introduce ninguna mejora.
 - [x] Creo notebook para generar dataframe de predicciones y generar CSV para el Agente A3C
