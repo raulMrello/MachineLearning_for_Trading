@@ -38,7 +38,7 @@ import plotly.plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import Scatter, Layout
 import plotly.tools as tls
-tls.set_credentials_file(username='raulMrello', api_key='qX9S30YRQ866mGF9b89u')
+
 
 ####################################################################################
 # TA-Lib: instalación y carga de la librería
