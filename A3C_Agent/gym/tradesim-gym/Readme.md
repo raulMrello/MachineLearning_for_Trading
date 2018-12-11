@@ -8,7 +8,5 @@ using historical bar data.
 
 
 See
-[here](https://github.com/hackthemarket/gym-trading/blob/master/gym_trading/envs/TradingEnv.ipynb)
-for a jupyter notebook describing basic usage and illustrating a
-(sometimes) winning strategy based on policy gradients implemented on
-tensorflow.
+[here](https://github.com/raulMrello/MachineLearning_for_Trading/tree/master/A3C_Agent/notebooks/Gym Trading Environment test.ipynb)
+for a jupyter notebook describing basic usage.

@@ -23,6 +23,11 @@ Para la siguiente fase, la idea es utilizar una red A3C (aprendizaje por refuerz
 ## Changelog
 
 ----------------------------------------------------------------------------------------------
+##### 11.12.2018 ->commit:"Implementado Gym TradeSim-v0"
+- [x] Completada la primera versión (v0.0.1) del entorno para Gym OpenAI del simulador de trading.
+	  Tengo que definir de forma correcta los rewards y crear una nueva versión (v0.0.2)
+- [x] Añado notebook con test del gym env creado.
+----------------------------------------------------------------------------------------------
 ##### 05.12.2018 ->commit:"Diseñando gym-environment"
 - [x] Inicio el desarrollo del Gym-env que me sirva de referencia para evaluar al agente A3C.
 - [x] Clono varios repos en ./gym 
