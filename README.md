@@ -23,6 +23,12 @@ Para la siguiente fase, la idea es utilizar una red A3C (aprendizaje por refuerz
 ## Changelog
 
 ----------------------------------------------------------------------------------------------
+##### 12.12.2018 ->commit:"Incluyo estadísticas en TradeSim-v0"
+- [x] Incluyo estadísticas, rewards y corrijo errores. Versión actual v0.0.5	  
+- [x] Actualizo los notebooks de trabajo.
+- [ ] Lo siguiente es integrar el Gym en el notebook A3C-LSTM e implementar los 'pullers' de datos
+	  desde el dataframe df_a3c_in. Una vez verificado, implementar el agente.
+----------------------------------------------------------------------------------------------
 ##### 11.12.2018 ->commit:"Implementado Gym TradeSim-v0"
 - [x] Completada la primera versión (v0.0.1) del entorno para Gym OpenAI del simulador de trading.
 	  Tengo que definir de forma correcta los rewards y crear una nueva versión (v0.0.2)

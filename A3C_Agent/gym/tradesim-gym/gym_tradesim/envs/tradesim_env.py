@@ -2,6 +2,9 @@ import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 import numpy as np
+from enum import Flag, auto
+import copy
+
     
 ##############################################################################################3
 class TradeSimEnv(gym.Env):
@@ -14,7 +17,24 @@ class TradeSimEnv(gym.Env):
   Commissions = 0.05
   TakeStopMargin = 0.2
 
+  # Rewards
+  RewardOnInvalidOperation = -2.0
+  RewardOnCloseManually    = -1.0
+  RewardOnCloseByStoploss  = -0.5
+  RewardOnHighProfit       =  1.0
+
   class AccountStatus:
+
+    class Signals(Flag):
+      NoSignals         = 0
+      PositionOpened    = auto()
+      PositionClosed    = auto()
+      StopLossReached   = auto()
+      InvalidOperation  = auto()
+      MarginCallReached = auto()
+      NoMoney           = auto()
+    
+
     #-------------------------------------------------------------------------------------
     def __init__(self, instrument, initial_equity, leverage, commissions, cb_tick, cb_market=None):
       """ Constructor:
@@ -34,7 +54,6 @@ class TradeSimEnv(gym.Env):
       self.commissions = commissions
       self.leverage = leverage  # ej. 30 => 30:1 
       self.initial_equity = initial_equity
-      self.result = ""
       self.reset()
     
     #-------------------------------------------------------------------------------------
@@ -42,9 +61,9 @@ class TradeSimEnv(gym.Env):
       """ Inicializa el estado de la cuenta:
       """
       self.position = None
+      self.last_position = None
       self.floatpl = 0
       self.pl = 0
-      self.pl_last = 0
       self.margin = 0    
       self.balance = self.initial_equity    
       self.equity = self.balance + self.floatpl
@@ -56,12 +75,12 @@ class TradeSimEnv(gym.Env):
     def updateStat(self, step):
       """ Actualizo el estado de la cuenta. Se ejecutará una vez por step
       """
-      self.result = ''
-      self.pl_last = self.pl
+      result = TradeSimEnv.AccountStatus.Signals.NoSignals
       self.tick = self.cb_tick(self.instrument, step)
       if self.position is not None:
-        self.position,account_stat = self.cb_market(op='info', position=self.position)
+        self.position, account_stat, result = self.cb_market(op='info', position=self.position)
         if self.position['stat'] == 'closed':
+          self.last_position = copy.deepcopy(self.position)
           self.position = None
         self.balance  = account_stat['balance']
         self.equity  = account_stat['equity']
@@ -71,6 +90,7 @@ class TradeSimEnv(gym.Env):
         self.margin_level  = account_stat['margin_level']
         self.margin_call  = account_stat['margin_call']    
         self.pl = account_stat['pl']
+      return result
 
     #-------------------------------------------------------------------------------------
     def openPosition(self, type='long', sl=None, tp=None):
@@ -81,30 +101,28 @@ class TradeSimEnv(gym.Env):
         tp    : Take-profit
       Returns: 
         Éxito, Descripción
-      """
-      self.result = ''
-      if self.position is not None:
-        self.result = 'err_pos_yet_open'
-        return False, 'There are opened positions'
+      """     
+      if self.position is not None:        
+        return TradeSimEnv.AccountStatus.Signals.InvalidOperation
       position = {}
       position['volume'] = self.risk * self.equity
       if position['volume'] > self.free_margin:
-        self.result = 'err_margin_call'
-        return False, 'Not enough money'
+        return TradeSimEnv.AccountStatus.Signals.NoMoney
 
       position['margin'] = position['volume']/self.leverage
       position['type'] = type
       position['sl'] = sl
       position['tp'] = tp
+      position['ratio_tpsl'] = 0
 
       # invoco callback para obtener precio de apertura
-      position,account_stat = self.cb_market(op='open', position=position)
+      position, account_stat, result = self.cb_market(op='open', position=position)
       if position['stat'] != 'opened':
-        self.result = 'err_open_failed'
-        return False, 'Market query error'   
+        return result | TradeSimEnv.AccountStatus.Signals.InvalidOperation   
 
       # actualizo posición en curso
       self.position = position
+      self.last_position = None
       
       # actualizo el estado de la cuenta
       self.balance  = account_stat['balance']
@@ -115,7 +133,7 @@ class TradeSimEnv(gym.Env):
       self.free_margin  = account_stat['free_margin']
       self.margin_level  = account_stat['margin_level']
       self.margin_call  = account_stat['margin_call']    
-      return True, 'Opened ' + self.position['type'] + ' at=' + str(self.position['price']) + ' volume=' + str(self.position['volume']) + ' margin=' + str(self.position['margin'])
+      return result
 
     #-------------------------------------------------------------------------------------
     def closePosition(self, type='long'):
@@ -124,18 +142,15 @@ class TradeSimEnv(gym.Env):
         type  : Tipo de posición 'long', 'short'
       Returns: 
         Éxito, Descripción
-      """
-      self.result = ''
+      """      
       if self.position is None:
-        self.result = 'err_pos_no_open'
-        return False, 'No opened positions'
+        return TradeSimEnv.AccountStatus.Signals.InvalidOperation 
       if self.position['type'] != type:
-        self.result = 'err_pos_type'
-        return False, 'Type error'
-      self.position,account_stat = self.cb_market(op='close', position=self.position)
+        return TradeSimEnv.AccountStatus.Signals.InvalidOperation 
+      self.position, account_stat, result = self.cb_market(op='close', position=self.position)
       if self.position['stat'] != 'closed':
-        self.result = 'err_close_failed'
-        return False, 'Market query error'
+        return result | TradeSimEnv.AccountStatus.Signals.InvalidOperation 
+      self.last_position = copy.deepcopy(self.position)
       self.position = None
       self.balance  = account_stat['balance']
       self.equity  = account_stat['equity']
@@ -145,7 +160,7 @@ class TradeSimEnv(gym.Env):
       self.margin_level  = account_stat['margin_level']
       self.margin_call  = account_stat['margin_call'] 
       self.pl = account_stat['pl']
-      return True, 'Closed position'
+      return result
 
     #-------------------------------------------------------------------------------------
     def _market_query(self, op='none', position=None):
@@ -156,10 +171,20 @@ class TradeSimEnv(gym.Env):
       Returns: 
         Position,AccountStat
       """    
-      account_stat = {}
+      result = TradeSimEnv.AccountStatus.Signals.NoSignals
+      account_stat = {
+        'balance': self.balance,
+        'equity' : self.equity,
+        'margin' : self.margin,
+        'floatpl': self.floatpl,
+        'free_margin': self.free_margin,
+        'margin_level': self.margin_level,
+        'margin_call': self.margin_call,
+        'pl': self.pl
+      }
       if op=='open':
         position['open_price'] = self.tick['ask'] if position['type']=='long' else self.tick['bid']  
-        position['price'] = position['open_price']
+        position['price'] = position['open_price']        
         position['stat'] = 'opened'
         account_stat['balance'] = self.balance
         account_stat['pl'] = self.pl
@@ -173,7 +198,9 @@ class TradeSimEnv(gym.Env):
         account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
         # chequeo si salta la llamada por nivel de margen
         account_stat['margin_call'] = False
+        result |= TradeSimEnv.AccountStatus.Signals.PositionOpened
         if account_stat['margin_level'] <= 100:
+          result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
           account_stat['margin_call'] = True
 
       elif op=='close':
@@ -181,6 +208,7 @@ class TradeSimEnv(gym.Env):
         position['price'] = position['close_price']
         position['closedpl'] = position['volume'] * (position['close_price'] - position['open_price']) if position['type']=='long' else (position['open_price'] - position['close_price'])
         position['closedpl'] -= self.commissions
+        position['ratio_tpsl'] = abs(position['close_price'] - position['open_price'])/abs(position['open_price'] - position['sl']) * (1 if position['type']=='long' else -1)
         position['stat'] = 'closed'
         account_stat['pl'] = self.pl
         account_stat['floatpl'] = 0
@@ -195,10 +223,12 @@ class TradeSimEnv(gym.Env):
         account_stat['margin_level'] = 100 * account_stat['equity']
         # chequeo si salta la llamada por nivel de margen
         account_stat['margin_call'] = False
+        result |= TradeSimEnv.AccountStatus.Signals.PositionClosed
         if account_stat['margin_level'] <= 100:
+          result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
           account_stat['margin_call'] = True
       
-      elif op=='info':
+      elif op=='info':        
         if position is None:
           account_stat['floatpl'] = 0
           account_stat['balance'] = self.balance
@@ -213,25 +243,38 @@ class TradeSimEnv(gym.Env):
           # chequeo si salta la llamada por nivel de margen
           account_stat['margin_call'] = False
           if account_stat['margin_level'] <= 100:
+            result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
             account_stat['margin_call'] = True
         else:
-          position['price'] = self.tick['ask'] if position['type']=='short' else self.tick['bid']
-          account_stat['floatpl'] = position['volume'] * (position['price'] - position['open_price']) if position['type']=='long' else (position['open_price'] - position['price'])
-          account_stat['balance'] = self.balance
-          account_stat['equity'] = self.equity + account_stat['floatpl']
-          account_stat['pl'] = self.pl
-          # actualizo el margen total
-          account_stat['margin'] = position['margin']
-          # actualizo el margen libre
-          account_stat['free_margin'] = account_stat['equity'] - account_stat['margin']
-          # calculo el nivel de margen
-          account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
-          # chequeo si salta la llamada por nivel de margen
-          account_stat['margin_call'] = False
-          if account_stat['margin_level'] <= 100:
-            account_stat['margin_call'] = True
+          if position['type']=='long' and self.tick['bid'] <= position['sl']:
+            result = self.closePosition(type='long')
+            if (result & TradeSimEnv.AccountStatus.Signals.PositionClosed):
+              result |= TradeSimEnv.AccountStatus.Signals.StopLossReached
+          
+          elif position['type']=='short' and self.tick['ask'] >= position['sl']:
+            result = self.closePosition(type='short')
+            if (result & TradeSimEnv.AccountStatus.Signals.PositionClosed):
+              result |= TradeSimEnv.AccountStatus.Signals.StopLossReached
 
-      return position,account_stat
+          else:
+            position['price'] = self.tick['ask'] if position['type']=='short' else self.tick['bid']
+            account_stat['floatpl'] = position['volume'] * (position['price'] - position['open_price']) if position['type']=='long' else (position['open_price'] - position['price'])
+            account_stat['balance'] = self.balance
+            account_stat['equity'] = self.equity + account_stat['floatpl']
+            account_stat['pl'] = self.pl
+            # actualizo el margen total
+            account_stat['margin'] = position['margin']
+            # actualizo el margen libre
+            account_stat['free_margin'] = account_stat['equity'] - account_stat['margin']
+            # calculo el nivel de margen
+            account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
+            # chequeo si salta la llamada por nivel de margen
+            account_stat['margin_call'] = False
+            if account_stat['margin_level'] <= 100:
+              result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
+              account_stat['margin_call'] = True
+
+      return position, account_stat, result
 
 
   #---------------------------------------------------------------------------
@@ -261,7 +304,21 @@ class TradeSimEnv(gym.Env):
     # inicialización de variables
     self.num_steps = 0
     self.steps = 0
+    self.result = 'none'
 
+    # listas para la generación de estadísticas
+    self.stats = {
+      'rewards': [], 
+      'balances': [],
+      'pos_open_long': [],
+      'pos_close_long': [],
+      'pos_open_short': [],
+      'pos_close_short': [],
+      'observations': [],
+      'actions': [],
+      'result_actions': [],
+      'result_state_next': []
+    }
 
   #---------------------------------------------------------------------------
   def configure(self, 
@@ -271,7 +328,8 @@ class TradeSimEnv(gym.Env):
                 max_pl, 
                 cb_pull_predictions, 
                 cb_pull_ticks,
-                cb_market_info):
+                cb_market_info,
+                enable_stats=True):
     """ 
     Construye el entorno (estados, acciones):
     Args:
@@ -314,6 +372,7 @@ class TradeSimEnv(gym.Env):
     self.max_balance = max_balance
     self.max_pl = max_pl
     self.cb_pull_predictions = cb_pull_predictions
+    self._enable_stats = enable_stats
     
     # inicialización de variables
     self.steps = 0
@@ -321,12 +380,27 @@ class TradeSimEnv(gym.Env):
 
 
   #---------------------------------------------------------------------------
+  def statistics(self):
+    """
+    Obtiene estadísticas de ejecución desde el 'reset' hasta el instante actual
+    Returns:
+      Stats - (dict) Estadísticas formada por:
+        rewards: lista de recompensas por step
+        balances: lista de balances por step
+        pos_open_long : lista de flags cuando se abre una operación long
+        pos_close_long: lista de flags cuando se cierra una operación long
+        pos_open_short: idem para short
+        pos_close_short: idem para short
+    """
+    return self.stats
+
+  #---------------------------------------------------------------------------
   def _get_state(self):
     obs = {}
-    hilo_dict = self.cb_pull_predictions(self.step)
+    hilo_dict = self.cb_pull_predictions(self.steps)
     obs['price_high'] = hilo_dict['high']
     obs['price_low'] =  hilo_dict['low']
-    self.account.updateStat(self.step)
+    result = self.account.updateStat(self.steps)
     obs['tick_ask']     = self.account.tick['ask']
     obs['tick_bid']     = self.account.tick['bid']
     obs['acc_balance']  = self.account.balance     
@@ -337,44 +411,57 @@ class TradeSimEnv(gym.Env):
     obs['pos_price']    = 0 if self.account.position is None else self.account.position['price']
     obs['pos_sl']       =  0 if self.account.position is None else self.account.position['sl']
     obs['pos_tp']       =  0 if self.account.position is None else self.account.position['tp']
-    self.obs = obs
-    return obs
+    return obs, result
 
 
   #---------------------------------------------------------------------------
   def _take_action(self, action):
     tpsl_range = self.obs['price_high'] - self.obs['price_low']
     tpsl_margin = tpsl_range * TradeSimEnv.TakeStopMargin
-    tpsl_above = self.obs['price_high'] + tpsl_margin
-    tpsl_below = self.obs['price_low'] - tpsl_margin
+    sl_above = self.obs['price_high'] + tpsl_margin
+    sl_below = self.obs['price_low'] - tpsl_margin
     action_list = ['none', 'open_long', 'close_long', 'open_short', 'close_short']
+    result = TradeSimEnv.AccountStatus.Signals.NoSignals
     if action_list[action] == 'open_long':      
-      done,_ = self.account.openPosition(type='long', sl=tpsl_below, tp=tpsl_above)
+      result |= self.account.openPosition(type='long', sl=sl_below, tp=None)
     elif action_list[action] == 'close_long':
-      done,_ = self.account.closePosition(type='long')
+      result |= self.account.closePosition(type='long')
     elif action_list[action] == 'open_short':
-      done,_ = self.account.openPosition(type='short', sl=tpsl_above, tp=tpsl_below)
+      result |= self.account.openPosition(type='short', sl=sl_above, tp=None)
     elif action_list[action] == 'close_short':
-      done,_ = self.account.closePosition(type='short')
+      result |= self.account.closePosition(type='short')
+    return result
     
 
   #---------------------------------------------------------------------------
-  def _get_reward(self):
+  def _get_reward(self, last_result):
     """
-    Las recompensas se forman por los siguientes elementos:
-    - Al cerrar una operación: se evalúa la relación entre el beneficio y el riesgo asumido
-      y en función de esa relación se aplica el premio para relaciones mayores a 1:1 y el
-      castigo para las menores, pero de forma proporcional. => (w1 * ((tp/sl)-1)) siendo w1 su factor modulador
-    - Riesgo asumido al cerrar una operación 'tp/sl': (w2 *((tp/sl)-1)) 
-    La recompensa tiene la forma:
-    r = w1 * beneficio_pos + w2 * perdida_pos + w3 * incr_balance + w4 * operacion_invalida
+    Obtiene las recompensas según las acciones realizadas anteriormente ('last_result'):
+    - Si acción no se puede ejecutar  => r - 2.0
+    - Si posición cierra por stoploss => r - 0.5
+    - Si posición cierra:
+                         con pl < 0   => r - 1.0                         
+                         con pl > 1   => r + (tp/sl) + 1.0
+                         resto        => r + (tp/sl)
     """
-    # evalúa las penalizaciones
-    if self.account.result == 'err_pos_yet_open' or self.account.result == 'err_pos_no_open' or self.account.result == 'err_pos_type':
-    if self.account.result == 'err_open_failed' or self.account.result == 'err_close_failed':          
-    if self.account.result == 'err_margin_call':          
-
-    reward = self.account.pl - self.account.pl_last
+    reward = 0
+    # si realiza una operación incorrecta, penaliza
+    if (last_result & (TradeSimEnv.AccountStatus.Signals.InvalidOperation | TradeSimEnv.AccountStatus.Signals.MarginCallReached | TradeSimEnv.AccountStatus.Signals.NoMoney)):
+      reward += TradeSimEnv.RewardOnInvalidOperation
+    # evalúa si se acaba de cerrar una operación
+    if (last_result & TradeSimEnv.AccountStatus.Signals.PositionClosed) and self.account.last_position is not None:
+      # si cierra con pérdidas, resta dependiendo si cierra manualmente o por stoploss
+      if self.account.last_position['closedpl'] < 0:
+        if (last_result & TradeSimEnv.AccountStatus.Signals.StopLossReached):
+          reward += TradeSimEnv.RewardOnCloseByStoploss
+        else:
+          reward += TradeSimEnv.RewardOnCloseManually
+      # si cierra con beneficios, suma según el ratio tp/sl
+      else:
+        reward += self.account.last_position['ratio_tpsl']
+        # y además, si el ratio de beneficio es mayor que 1, aplica reward extra
+        if self.account.last_position['ratio_tpsl'] > 1.0:
+          reward += TradeSimEnv.RewardOnHighProfit
     return reward
 
   #---------------------------------------------------------------------------
@@ -395,9 +482,22 @@ class TradeSimEnv(gym.Env):
     -------
       obs : Estado inicial
     """
+    # listas para la generación de estadísticas
+    self.stats = {
+      'rewards': [], 
+      'balances': [],
+      'pos_open_long': [],
+      'pos_open_short': [],
+      'pos_close': [],
+      'observations': [],
+      'actions': [],
+      'result_actions': [],
+      'result_state_next': []
+    }
     self.steps = 0
     self.account.reset()
-    return self._get_state()
+    self.obs, self.result = self._get_state()
+    return self.obs
         
 
   #---------------------------------------------------------------------------
@@ -430,12 +530,22 @@ class TradeSimEnv(gym.Env):
               use this for learning.
 
     """
-    self._take_action(action)
-    reward = self._get_reward()
+    result_action = self._take_action(action)
+    reward = self._get_reward(result_action)
     self.steps += 1
-    ob = self._get_state()
+    obs, result_state_next = self._get_state()
     done = self._get_done()
-    return ob, reward, done, {}
+    if self._enable_stats:
+      self.stats['rewards'].append(reward)
+      self.stats['balances'].append(self.account.balance)
+      self.stats['pos_open_long'].append(1 if (result_action & TradeSimEnv.AccountStatus.Signals.PositionOpened) and obs['pos_long']==1 else 0)
+      self.stats['pos_open_short'].append(1 if (result_action & TradeSimEnv.AccountStatus.Signals.PositionOpened) and obs['pos_short']==1 else 0)
+      self.stats['pos_close'].append(1 if ((result_action | result_state_next) & TradeSimEnv.AccountStatus.Signals.PositionClosed) else 0)
+      self.stats['observations'].append(obs)
+      self.stats['actions'].append(action)
+      self.stats['result_actions'].append(result_action)
+      self.stats['result_state_next'].append(result_state_next)
+    return obs, reward, done, str(result_action | result_state_next)
 
 
   #---------------------------------------------------------------------------
