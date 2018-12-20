@@ -39,12 +39,12 @@ class TradeSimEnv(gym.Env):
     def __init__(self, instrument, initial_equity, leverage, commissions, cb_tick, cb_market=None):
       """ Constructor:
       Args:
-        instrument     : Instrumento. Ejemplo 'eurusd_h1'
-        initial_equity : Patrimonio inicial
-        leverage       : Apalancamiento
-        commissions    : Comisiones fijas por operación
-        cb_tick        : Callback de acceso a precios instantáneos ask,bid
-        cb_market      : Callback de acceso al mercado (por defecto self._market_query)
+        instrument     : Instrument:  'eurusd_h1'
+        initial_equity : Initial Equity
+        leverage       : Initial Leverage
+        commissions    : Commissions per operation
+        cb_tick        : Callback for quote feed
+        cb_market      : Callback market feed (default: self._market_query)
       """
       self.instrument = instrument
       self.tick = {'ask':0.0, 'bid':0.0}
@@ -58,7 +58,7 @@ class TradeSimEnv(gym.Env):
     
     #-------------------------------------------------------------------------------------
     def reset(self):
-      """ Inicializa el estado de la cuenta:
+      """ Init account state
       """
       self.position = None
       self.last_position = None
@@ -73,7 +73,7 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def updateStat(self, step):
-      """ Actualizo el estado de la cuenta. Se ejecutará una vez por step
+      """ Update account state. One update per step
       """
       result = TradeSimEnv.AccountStatus.Signals.NoSignals
       self.tick = self.cb_tick(self.instrument, step)
@@ -94,13 +94,13 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def openPosition(self, type='long', sl=None, tp=None):
-      """ Intenta abrir una posición
+      """ Try to open a position
       Args:
-        type  : Tipo de posición 'long', 'short'
+        type  : Position type 'long', 'short'
         sl    : Stop-loss
         tp    : Take-profit
       Returns: 
-        Éxito, Descripción
+        Success, Description
       """     
       if self.position is not None:        
         return TradeSimEnv.AccountStatus.Signals.InvalidOperation
@@ -137,11 +137,11 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def closePosition(self, type='long'):
-      """ Intenta cerrar una posición abierta de un tipo dado
+      """ Try to close an opened position
       Args:
-        type  : Tipo de posición 'long', 'short'
+        type  : Type 'long', 'short'
       Returns: 
-        Éxito, Descripción
+        Success, Description
       """      
       if self.position is None:
         return TradeSimEnv.AccountStatus.Signals.InvalidOperation 
@@ -164,10 +164,10 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def _market_query(self, op='none', position=None):
-      """ Callback interna en caso de no proporcionar 'cb_market'
+      """ Callback for market access 'cb_market'
       Args:
-        op       : Tipo de operación 'open, close, info, none'
-        position : Posición involucrada o None
+        op       : Operation type 'open, close, info, none'
+        position : Opened position or None
       Returns: 
         Position,AccountStat
       """    
@@ -280,7 +280,7 @@ class TradeSimEnv(gym.Env):
   #---------------------------------------------------------------------------
   def __init__( self):
     """ 
-    Construye el entorno (estados, acciones):
+    Build the environment (state,actions)
     """
     self.observation_space = spaces.Dict({
       'price_high' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
@@ -331,21 +331,18 @@ class TradeSimEnv(gym.Env):
                 cb_market_info,
                 enable_stats=True):
     """ 
-    Construye el entorno (estados, acciones):
+    Configure the environment (state,actions)
     Args:
     -------
-      steps_per_episode   : Número de pasos del episodio
-      max_price           : Valor máximo que puede tomar cualquier precio
-      max_balance         : Valor máximo que puede tomar la cuenta
-      max_pl              : Valor máximo que pueden tomar los beneficios totales
-      cb_pull_predictions : Callback para obtener las predicciones en un step dado. Ej:
+      steps_per_episode   : Num steps per episode
+      max_price           : Max price
+      max_balance         : Max balance
+      max_pl              : Max profit
+      cb_pull_predictions : Callback to get predictions. Ej:
                               def pull_predicted_data(step): return {'high':0.0, 'low':0.0}
-      cb_pull_ticks       : Callback para obtener los ticks en un step dado. Ej:
+      cb_pull_ticks       : Callback to get quotes. Ej:
                               def pull_last_tick(instrument, step): return {'ask':0.0, 'bid':0.0}
-      cb_market_info      : Callback para obtener información del terminal de mercado
-    """
-    """ 
-    Construye el entorno (estados, acciones):
+      cb_market_info      : Callback to get account info
     """
     self.observation_space = spaces.Dict({
       'price_high' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
@@ -382,7 +379,7 @@ class TradeSimEnv(gym.Env):
   #---------------------------------------------------------------------------
   def statistics(self):
     """
-    Obtiene estadísticas de ejecución desde el 'reset' hasta el instante actual
+    Get execution stats since env.reset till now
     Returns:
       Stats - (dict) Estadísticas formada por:
         rewards: lista de recompensas por step

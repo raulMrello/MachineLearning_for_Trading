@@ -128,28 +128,20 @@ class PredictiveNet:
             if key=='tvt_csv_file': 
                 if _dbg:
                     print('Cargando histórico...')
-                self.df = self.load_hist(val, sep=';', reindex_fillna=True, plot_it=_dbg, debug_it=_dbg)
+                self.df = utils.load_hist(val, sep=';', remove_weekends=True)
                 if _dbg:
                     print(self.df.head())
                     print('Incluyendo indicadores...')
-                self.dfapp = self.add_indicators(self.df, 
-                                            'out',
-                                            ['CLOSE'], 
-                                            ['weekday', 'barsize'], 
-                                            ['weekday'], 
-                                            ['bollWidthRel', 'bollR', 'atr', 'SMAx3'], 
-                                            remove_weekends=True, 
-                                            add_applied=True, 
-                                            plot_it=_dbg, 
-                                            starts=0, 
-                                            plot_len=0)
+                self.df = utils.add_indicators(self.df, applied=['HIGH','LOW'], base_cols=['OPEN','HIGH','LOW','CLOSE','OC2','HLC3','OHLC4'])
                 
-                self.num_outputs = 1
-                self.num_inputs = self.dfapp.shape[1] - self.num_outputs
+                self.num_outputs = 2
+                self.df['OUT_HIGH'] = self.df.HIGH.shift(-1)
+                self.df['OUT_LOW'] = self.df.LOW.shift(-1)
+                self.num_inputs = self.df.shape[1] - self.num_outputs
                 if _dbg:
-                    print(self.dfapp.head())
+                    print(self.df.head())
                     print('Parseando a supervisado con ins={}, outs={}...'.format(self.num_inputs,self.num_outputs))
-                self.sts_df = self.series_to_supervised(self.dfapp, self.num_inputs, self.num_outputs, self.lbw, self.fww)                
+                self.sts_df = self.series_to_supervised(self.df, self.num_inputs, self.num_outputs, self.lbw, self.fww)                
                 if _dbg:
                     print(self.sts_df.head())
                     print('Normalizando...')
