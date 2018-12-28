@@ -21,6 +21,10 @@ As a development guide, I am using PYTHON language and these most representative
 
 
 -------------------------------------------------- --------------------------------------------
+##### 28.12.2018 -> commit: "Update notebook with generated predictions"
+- [x] Update generation of predictions in Price prediction notebook
+- [x] Add images, documents, csv results and common documentation
+-------------------------------------------------- --------------------------------------------
 ##### 20.12.2018 -> commit: "Curated notebook for price prediction"
 - [x] Refactor content in Price prediction notebook
 - [] Next stuff: integrate Gym into the A3C-LSTM notebook and implement data 'pullers' from the dataframe df_a3c_in. Once verified, implement the agent.

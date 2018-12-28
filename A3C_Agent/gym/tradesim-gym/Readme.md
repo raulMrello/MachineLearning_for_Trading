@@ -8,5 +8,5 @@ using historical bar data.
 
 
 See
-[here](https://github.com/raulMrello/MachineLearning_for_Trading/tree/master/A3C_Agent/notebooks/Gym Trading Environment test.ipynb)
+[here](https://github.com/raulMrello/MachineLearning_for_Trading/blob/master/A3C_Agent/notebooks/Gym%20Trading%20Environment%20test.ipynb)
 for a jupyter notebook describing basic usage.

@@ -190,13 +190,13 @@ class TradeSimEnv(gym.Env):
         account_stat['pl'] = self.pl
         account_stat['floatpl'] = 0
         account_stat['equity'] = self.equity + account_stat['floatpl']
-        # actualizo el margen total
+        # update margin
         account_stat['margin'] = position['margin']
-        # actualizo el margen libre
+        # update free margin
         account_stat['free_margin'] = account_stat['equity'] - account_stat['margin']
-        # calculo el nivel de margen
+        # calculate margin level
         account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
-        # chequeo si salta la llamada por nivel de margen
+        # check margin call
         account_stat['margin_call'] = False
         result |= TradeSimEnv.AccountStatus.Signals.PositionOpened
         if account_stat['margin_level'] <= 100:
@@ -215,13 +215,9 @@ class TradeSimEnv(gym.Env):
         account_stat['balance'] = self.balance + position['closedpl']
         account_stat['equity'] = account_stat['balance']
         account_stat['pl'] = account_stat['equity'] - self.initial_equity
-        # actualizo el margen total
         account_stat['margin'] = 0
-        # actualizo el margen libre
         account_stat['free_margin'] = account_stat['equity'] 
-        # calculo el nivel de margen
         account_stat['margin_level'] = 100 * account_stat['equity']
-        # chequeo si salta la llamada por nivel de margen
         account_stat['margin_call'] = False
         result |= TradeSimEnv.AccountStatus.Signals.PositionClosed
         if account_stat['margin_level'] <= 100:
@@ -234,13 +230,9 @@ class TradeSimEnv(gym.Env):
           account_stat['balance'] = self.balance
           account_stat['equity'] = self.equity
           account_stat['pl'] = self.pl
-          # actualizo el margen total
           account_stat['margin'] = 0
-          # actualizo el margen libre
           account_stat['free_margin'] = account_stat['equity'] - account_stat['margin']
-          # calculo el nivel de margen
           account_stat['margin_level'] = 100 * (account_stat['equity'])
-          # chequeo si salta la llamada por nivel de margen
           account_stat['margin_call'] = False
           if account_stat['margin_level'] <= 100:
             result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
@@ -262,13 +254,9 @@ class TradeSimEnv(gym.Env):
             account_stat['balance'] = self.balance
             account_stat['equity'] = self.equity + account_stat['floatpl']
             account_stat['pl'] = self.pl
-            # actualizo el margen total
             account_stat['margin'] = position['margin']
-            # actualizo el margen libre
             account_stat['free_margin'] = account_stat['equity'] - account_stat['margin']
-            # calculo el nivel de margen
             account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
-            # chequeo si salta la llamada por nivel de margen
             account_stat['margin_call'] = False
             if account_stat['margin_level'] <= 100:
               result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
@@ -301,12 +289,12 @@ class TradeSimEnv(gym.Env):
     # 0->none   1->open_long   2->close_long  3->open_short  4->close_short
     self.action_space = spaces.Discrete(TradeSimEnv.NumActions)
     
-    # inicialización de variables
+    # init variables
     self.num_steps = 0
     self.steps = 0
     self.result = 'none'
 
-    # listas para la generación de estadísticas
+    # lists for stats report
     self.stats = {
       'rewards': [], 
       'balances': [],
@@ -363,7 +351,7 @@ class TradeSimEnv(gym.Env):
     # 0->none   1->open_long   2->close_long  3->open_short  4->close_short
     self.action_space = spaces.Discrete(TradeSimEnv.NumActions)
     
-    # captura de parámetros
+    # get params
     self.num_steps = steps_per_episode
     self.max_price = max_price
     self.max_balance = max_balance
@@ -371,7 +359,7 @@ class TradeSimEnv(gym.Env):
     self.cb_pull_predictions = cb_pull_predictions
     self._enable_stats = enable_stats
     
-    # inicialización de variables
+    # init variables
     self.steps = 0
     self.account = TradeSimEnv.AccountStatus('eurusd_h1', TradeSimEnv.InitialEquity, TradeSimEnv.Leverage, TradeSimEnv.Commissions, cb_pull_ticks, cb_market_info)
 
@@ -381,13 +369,13 @@ class TradeSimEnv(gym.Env):
     """
     Get execution stats since env.reset till now
     Returns:
-      Stats - (dict) Estadísticas formada por:
-        rewards: lista de recompensas por step
-        balances: lista de balances por step
-        pos_open_long : lista de flags cuando se abre una operación long
-        pos_close_long: lista de flags cuando se cierra una operación long
-        pos_open_short: idem para short
-        pos_close_short: idem para short
+      Stats - (dict) stats report step by step:
+        rewards: rewards
+        balances: account balance
+        pos_open_long : long-operation opening flag
+        pos_close_long: long-operation closing flag
+        pos_open_short: short-operation opening flag
+        pos_close_short: short-operation closing flag
     """
     return self.stats
 
@@ -433,30 +421,31 @@ class TradeSimEnv(gym.Env):
   #---------------------------------------------------------------------------
   def _get_reward(self, last_result):
     """
-    Obtiene las recompensas según las acciones realizadas anteriormente ('last_result'):
-    - Si acción no se puede ejecutar  => r - 2.0
-    - Si posición cierra por stoploss => r - 0.5
-    - Si posición cierra:
-                         con pl < 0   => r - 1.0                         
-                         con pl > 1   => r + (tp/sl) + 1.0
-                         resto        => r + (tp/sl)
+    Get rewards according with executed actions previously ('last_result'):
+    - If is an invalid action  => r - 2.0
+    - If position is closed by stoploss => r - 0.5
+    - If positions closed:
+                         With losses (pl < 0)   => r - 1.0                         
+                         With profit:
+                          if (pl > 0 & tp/sl > 1)   => r + (tp/sl) + 1.0
+                          else                      => r + (tp/sl)
     """
     reward = 0
-    # si realiza una operación incorrecta, penaliza
+    # on invalid action
     if (last_result & (TradeSimEnv.AccountStatus.Signals.InvalidOperation | TradeSimEnv.AccountStatus.Signals.MarginCallReached | TradeSimEnv.AccountStatus.Signals.NoMoney)):
       reward += TradeSimEnv.RewardOnInvalidOperation
-    # evalúa si se acaba de cerrar una operación
+    # check if has closed an opened position
     if (last_result & TradeSimEnv.AccountStatus.Signals.PositionClosed) and self.account.last_position is not None:
-      # si cierra con pérdidas, resta dependiendo si cierra manualmente o por stoploss
+      # if closed with losses...
       if self.account.last_position['closedpl'] < 0:
         if (last_result & TradeSimEnv.AccountStatus.Signals.StopLossReached):
           reward += TradeSimEnv.RewardOnCloseByStoploss
         else:
           reward += TradeSimEnv.RewardOnCloseManually
-      # si cierra con beneficios, suma según el ratio tp/sl
+      # if closed with profit...
       else:
         reward += self.account.last_position['ratio_tpsl']
-        # y además, si el ratio de beneficio es mayor que 1, aplica reward extra
+        # apply extra reward if tp/sl ratio better than 1.0
         if self.account.last_position['ratio_tpsl'] > 1.0:
           reward += TradeSimEnv.RewardOnHighProfit
     return reward
@@ -474,10 +463,10 @@ class TradeSimEnv(gym.Env):
   #---------------------------------------------------------------------------
   def reset(self):
     """
-    Inicializa el estado del entorno
+    Init environment state
     Returns:
     -------
-      obs : Estado inicial
+      obs : Initial state
     """
     # listas para la generación de estadísticas
     self.stats = {
@@ -500,10 +489,10 @@ class TradeSimEnv(gym.Env):
   #---------------------------------------------------------------------------
   def step(self, action):
     """
-    Ejecuta una acción y obtiene el resultado de la misma
+    Executes an action and get result
     Args:
     -------
-      action  : Acción a ejecutar
+      action  : Action to execute
     Returns
     -------
     ob, reward, episode_over, info : tuple
