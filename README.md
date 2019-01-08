@@ -21,6 +21,10 @@ As a development guide, I am using PYTHON language and these most representative
 
 
 -------------------------------------------------- --------------------------------------------
+##### 08.01.2019 -> commit: "Update predictions with H4 histdata"
+- [x] Update generation of predictions in Price prediction notebook with H4 data
+- [x] Add images, documents, csv results and common documentation
+-------------------------------------------------- --------------------------------------------
 ##### 28.12.2018 -> commit: "Update notebook with generated predictions"
 - [x] Update generation of predictions in Price prediction notebook
 - [x] Add images, documents, csv results and common documentation
