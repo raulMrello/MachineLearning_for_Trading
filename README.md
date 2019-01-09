@@ -21,6 +21,9 @@ As a development guide, I am using PYTHON language and these most representative
 
 
 -------------------------------------------------- --------------------------------------------
+##### 09.01.2019 -> commit: "Updating Trading environment with candlestick patterns"
+- [x] Updating environment, csv backup, notebooks, etc.
+-------------------------------------------------- --------------------------------------------
 ##### 08.01.2019 -> commit: "Update predictions with H4 histdata"
 - [x] Update generation of predictions in Price prediction notebook with H4 data
 - [x] Add images, documents, csv results and common documentation

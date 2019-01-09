@@ -1,3 +1,4 @@
+# Let's import required libraries
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -5,26 +6,40 @@ import numpy as np
 from enum import Flag, auto
 import copy
 
-    
-##############################################################################################3
+
+# Let's define the Trading Environment class: TradeSimEnv    
+##############################################################################################
 class TradeSimEnv(gym.Env):
 
   metadata = {'render.modes': ['human']}
+  # initialize some global constants: 
+  # Trading action count
   NumActions = 5
+  # Observable input state count (without candlestick patterns)
   NumStates = 12
+
+  # And other default values for inner class: AccountState and the Trading Platform emulator:
+  # Initial account equity
   InitialEquity = 1000.0
+  # Fixed leverage 
   Leverage = 1.0
+  # Fixed commissions
   Commissions = 0.05
+  # Fixed margin to set stoploss level above High prediction or below Low prediction
   TakeStopMargin = 0.2
 
-  # Rewards
+  # Rewards definitions:
   RewardOnInvalidOperation = -2.0
   RewardOnCloseManually    = -1.0
   RewardOnCloseByStoploss  = -0.5
   RewardOnHighProfit       =  1.0
 
+  ##############################################################################################
+  # Let's define the internal class: Account State
+  ##############################################################################################
   class AccountStatus:
 
+    # Define different Account events as a Signals class
     class Signals(Flag):
       NoSignals         = 0
       PositionOpened    = auto()
@@ -37,14 +52,15 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def __init__(self, instrument, initial_equity, leverage, commissions, cb_tick, cb_market=None):
-      """ Constructor:
+      """ Constructor: Initializes internal variables. By default it connects to its internal
+          trading platform emulator.
       Args:
-        instrument     : Instrument:  'eurusd_h1'
+        instrument     : financial instrument to invest in
         initial_equity : Initial Equity
         leverage       : Initial Leverage
         commissions    : Commissions per operation
         cb_tick        : Callback for quote feed
-        cb_market      : Callback market feed (default: self._market_query)
+        cb_market      : Callback market feed (default: self._market_query -> internal TP emulator)
       """
       self.instrument = instrument
       self.tick = {'ask':0.0, 'bid':0.0}
@@ -73,15 +89,22 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def updateStat(self, step):
-      """ Update account state. One update per step
+      """ Update account state. Should be called once per episode step to update account state
+          information.
       """
+      # clear account event flags
       result = TradeSimEnv.AccountStatus.Signals.NoSignals
+      # get a new quote from the external source
       self.tick = self.cb_tick(self.instrument, step)
+      # check if positions opened...
       if self.position is not None:
+        # then connect with TP and update position and account state
         self.position, account_stat, result = self.cb_market(op='info', position=self.position)
+        # if opened position is just closed, record last position information
         if self.position['stat'] == 'closed':
           self.last_position = copy.deepcopy(self.position)
           self.position = None
+        # update account state with data received from the Trading Platform
         self.balance  = account_stat['balance']
         self.equity  = account_stat['equity']
         self.margin = account_stat['margin']
@@ -93,38 +116,42 @@ class TradeSimEnv(gym.Env):
       return result
 
     #-------------------------------------------------------------------------------------
-    def openPosition(self, type='long', sl=None, tp=None):
+    def openPosition(self, type='long', sl=None):
       """ Try to open a position
       Args:
         type  : Position type 'long', 'short'
         sl    : Stop-loss
-        tp    : Take-profit
       Returns: 
         Success, Description
       """     
-      if self.position is not None:        
+      # check if opened position...
+      if self.position is not None:
+        # then return error        
         return TradeSimEnv.AccountStatus.Signals.InvalidOperation
+      # else, create a new one, calculate volume with fixed 1% risk factor
       position = {}
       position['volume'] = self.risk * self.equity
+      # if no money throw error
       if position['volume'] > self.free_margin:
         return TradeSimEnv.AccountStatus.Signals.NoMoney
 
+      # calculate margin level and updates other params
       position['margin'] = position['volume']/self.leverage
       position['type'] = type
       position['sl'] = sl
-      position['tp'] = tp
       position['ratio_tpsl'] = 0
 
-      # invoco callback para obtener precio de apertura
+      # request an open operation to the TP
       position, account_stat, result = self.cb_market(op='open', position=position)
+      # if position not opened throw error
       if position['stat'] != 'opened':
         return result | TradeSimEnv.AccountStatus.Signals.InvalidOperation   
 
-      # actualizo posición en curso
+      # else update position and detach last saved record
       self.position = position
       self.last_position = None
       
-      # actualizo el estado de la cuenta
+      # update account state
       self.balance  = account_stat['balance']
       self.equity  = account_stat['equity']
       self.margin = account_stat['margin']
@@ -143,15 +170,20 @@ class TradeSimEnv(gym.Env):
       Returns: 
         Success, Description
       """      
+      # check if operation can be executed or not
       if self.position is None:
         return TradeSimEnv.AccountStatus.Signals.InvalidOperation 
       if self.position['type'] != type:
         return TradeSimEnv.AccountStatus.Signals.InvalidOperation 
+      # connect with TP requesting a close operation
       self.position, account_stat, result = self.cb_market(op='close', position=self.position)
+      # if unable to close, throw error
       if self.position['stat'] != 'closed':
         return result | TradeSimEnv.AccountStatus.Signals.InvalidOperation 
+      # else, record last opened operation
       self.last_position = copy.deepcopy(self.position)
       self.position = None
+      # update account state
       self.balance  = account_stat['balance']
       self.equity  = account_stat['equity']
       self.margin = account_stat['margin']
@@ -164,13 +196,14 @@ class TradeSimEnv(gym.Env):
 
     #-------------------------------------------------------------------------------------
     def _market_query(self, op='none', position=None):
-      """ Callback for market access 'cb_market'
+      """ Trading Platform emulator. By default is connected to cb_market to simulate the TP.
       Args:
         op       : Operation type 'open, close, info, none'
         position : Opened position or None
       Returns: 
         Position,AccountStat
       """    
+      # clear event flags
       result = TradeSimEnv.AccountStatus.Signals.NoSignals
       account_stat = {
         'balance': self.balance,
@@ -182,7 +215,9 @@ class TradeSimEnv(gym.Env):
         'margin_call': self.margin_call,
         'pl': self.pl
       }
+      # check if an open operation is requested
       if op=='open':
+        # calculate open price, updates position and account state
         position['open_price'] = self.tick['ask'] if position['type']=='long' else self.tick['bid']  
         position['price'] = position['open_price']        
         position['stat'] = 'opened'
@@ -198,12 +233,15 @@ class TradeSimEnv(gym.Env):
         account_stat['margin_level'] = 100 * (account_stat['equity']/account_stat['margin'])
         # check margin call
         account_stat['margin_call'] = False
+        # update flags and check if margin level below 100 to throw margin call
         result |= TradeSimEnv.AccountStatus.Signals.PositionOpened
         if account_stat['margin_level'] <= 100:
           result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
           account_stat['margin_call'] = True
 
+      # check if close operation requested
       elif op=='close':
+        # update position params, calculate closed P/L and updates account state
         position['close_price'] = self.tick['ask'] if position['type']=='short' else self.tick['bid'] 
         position['price'] = position['close_price']
         position['closedpl'] = position['volume'] * (position['close_price'] - position['open_price']) if position['type']=='long' else (position['open_price'] - position['close_price'])
@@ -219,12 +257,15 @@ class TradeSimEnv(gym.Env):
         account_stat['free_margin'] = account_stat['equity'] 
         account_stat['margin_level'] = 100 * account_stat['equity']
         account_stat['margin_call'] = False
+        # check account events
         result |= TradeSimEnv.AccountStatus.Signals.PositionClosed
         if account_stat['margin_level'] <= 100:
           result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
           account_stat['margin_call'] = True
       
+      # check if info requested to TP
       elif op=='info':        
+        # if no opened positions, update account state and check event flags
         if position is None:
           account_stat['floatpl'] = 0
           account_stat['balance'] = self.balance
@@ -237,6 +278,7 @@ class TradeSimEnv(gym.Env):
           if account_stat['margin_level'] <= 100:
             result |= TradeSimEnv.AccountStatus.Signals.MarginCallReached
             account_stat['margin_call'] = True
+        # if opened positions, check if stoploss reached to close it automatically
         else:
           if position['type']=='long' and self.tick['bid'] <= position['sl']:
             result = self.closePosition(type='long')
@@ -249,6 +291,7 @@ class TradeSimEnv(gym.Env):
               result |= TradeSimEnv.AccountStatus.Signals.StopLossReached
 
           else:
+            # update position and account state
             position['price'] = self.tick['ask'] if position['type']=='short' else self.tick['bid']
             account_stat['floatpl'] = position['volume'] * (position['price'] - position['open_price']) if position['type']=='long' else (position['open_price'] - position['price'])
             account_stat['balance'] = self.balance
@@ -265,11 +308,15 @@ class TradeSimEnv(gym.Env):
       return position, account_stat, result
 
 
+
+
+
   #---------------------------------------------------------------------------
   def __init__( self):
-    """ 
-    Build the environment (state,actions)
+    """ Constructor of the TradeSimEnv class (state,actions)
     """
+    # define the observation space:
+    # predictions, quotes, account state and candlestick patterns
     self.observation_space = spaces.Dict({
       'price_high' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
       'price_low' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
@@ -281,20 +328,20 @@ class TradeSimEnv(gym.Env):
       'pos_long': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_short': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_price': spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32),
-      'pos_sl' :  spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32),
-      'pos_tp' :  spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32),
+      'pos_sl' :  spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32)
     }),
     self.obs = {}
     
+    # define trading actions as integer values:
     # 0->none   1->open_long   2->close_long  3->open_short  4->close_short
     self.action_space = spaces.Discrete(TradeSimEnv.NumActions)
     
-    # init variables
+    # initialize own variables
     self.num_steps = 0
     self.steps = 0
     self.result = 'none'
 
-    # lists for stats report
+    # build several lists for stats report
     self.stats = {
       'rewards': [], 
       'balances': [],
@@ -314,24 +361,28 @@ class TradeSimEnv(gym.Env):
                 max_price, 
                 max_balance, 
                 max_pl, 
+                cb_pull_cdl_patterns,
                 cb_pull_predictions, 
                 cb_pull_ticks,
                 cb_market_info,
                 enable_stats=True):
     """ 
-    Configure the environment (state,actions)
+    Internal public method for configuring the environment
     Args:
     -------
       steps_per_episode   : Num steps per episode
       max_price           : Max price
       max_balance         : Max balance
       max_pl              : Max profit
+      cb_pull_cdl_patterns: Callback to get candlestick pattern detectors
       cb_pull_predictions : Callback to get predictions. Ej:
                               def pull_predicted_data(step): return {'high':0.0, 'low':0.0}
       cb_pull_ticks       : Callback to get quotes. Ej:
                               def pull_last_tick(instrument, step): return {'ask':0.0, 'bid':0.0}
       cb_market_info      : Callback to get account info
     """
+
+    # reinitialize observation space variables
     self.observation_space = spaces.Dict({
       'price_high' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
       'price_low' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
@@ -343,11 +394,11 @@ class TradeSimEnv(gym.Env):
       'pos_long': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_short': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_price': spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32),
-      'pos_sl' :  spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32),
-      'pos_tp' :  spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32),
+      'pos_sl' :  spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32)
     }),
     self.obs = {}
     
+    # trading actions
     # 0->none   1->open_long   2->close_long  3->open_short  4->close_short
     self.action_space = spaces.Discrete(TradeSimEnv.NumActions)
     
@@ -356,12 +407,13 @@ class TradeSimEnv(gym.Env):
     self.max_price = max_price
     self.max_balance = max_balance
     self.max_pl = max_pl
+    self.cb_pull_cdl_patterns = cb_pull_cdl_patterns
     self.cb_pull_predictions = cb_pull_predictions
     self._enable_stats = enable_stats
     
-    # init variables
+    # init variables and create AccountStatus class
     self.steps = 0
-    self.account = TradeSimEnv.AccountStatus('eurusd_h1', TradeSimEnv.InitialEquity, TradeSimEnv.Leverage, TradeSimEnv.Commissions, cb_pull_ticks, cb_market_info)
+    self.account = TradeSimEnv.AccountStatus('EURUSD', TradeSimEnv.InitialEquity, TradeSimEnv.Leverage, TradeSimEnv.Commissions, cb_pull_ticks, cb_market_info)
 
 
   #---------------------------------------------------------------------------
@@ -383,6 +435,7 @@ class TradeSimEnv(gym.Env):
   def _get_state(self):
     obs = {}
     hilo_dict = self.cb_pull_predictions(self.steps)
+    cdl_patterns = self.cb_pull_cdl_patterns(self.step)
     obs['price_high'] = hilo_dict['high']
     obs['price_low'] =  hilo_dict['low']
     result = self.account.updateStat(self.steps)
@@ -395,16 +448,22 @@ class TradeSimEnv(gym.Env):
     obs['pos_short']    = 0 if self.account.position is None else (1 if self.account.position['type']=='short' else 0)
     obs['pos_price']    = 0 if self.account.position is None else self.account.position['price']
     obs['pos_sl']       =  0 if self.account.position is None else self.account.position['sl']
-    obs['pos_tp']       =  0 if self.account.position is None else self.account.position['tp']
+    for c in len(cdl_patterns):
+      obs['cdl_'+str(c)] = cdl_patterns[c]
     return obs, result
 
 
   #---------------------------------------------------------------------------
   def _take_action(self, action):
+    """ Executes an action, and calculates stoploss level according with the predefined
+        margin level 'TakeStopMargin'. 
+    """
     tpsl_range = self.obs['price_high'] - self.obs['price_low']
     tpsl_margin = tpsl_range * TradeSimEnv.TakeStopMargin
+    # pre-calculate stoploss levels above and below
     sl_above = self.obs['price_high'] + tpsl_margin
     sl_below = self.obs['price_low'] - tpsl_margin
+    # request the action setting an appropiate stoploss level
     action_list = ['none', 'open_long', 'close_long', 'open_short', 'close_short']
     result = TradeSimEnv.AccountStatus.Signals.NoSignals
     if action_list[action] == 'open_long':      
@@ -452,6 +511,7 @@ class TradeSimEnv(gym.Env):
 
   #---------------------------------------------------------------------------
   def _get_done(self):
+    """ Check if done condition has been reached """
     done = False
     if self.steps >= self.num_steps:
       done = True
@@ -468,7 +528,7 @@ class TradeSimEnv(gym.Env):
     -------
       obs : Initial state
     """
-    # listas para la generación de estadísticas
+    # clear stats 
     self.stats = {
       'rewards': [], 
       'balances': [],
@@ -480,6 +540,7 @@ class TradeSimEnv(gym.Env):
       'result_actions': [],
       'result_state_next': []
     }
+    # initialize own variables and AccountStatus class
     self.steps = 0
     self.account.reset()
     self.obs, self.result = self._get_state()
@@ -516,11 +577,16 @@ class TradeSimEnv(gym.Env):
               use this for learning.
 
     """
+    # executes action and takes reward
     result_action = self._take_action(action)
     reward = self._get_reward(result_action)
+    # update step count
     self.steps += 1
+    # get updated space state observation
     obs, result_state_next = self._get_state()
+    # update done flag
     done = self._get_done()
+    # if stats enabled, add current step stats
     if self._enable_stats:
       self.stats['rewards'].append(reward)
       self.stats['balances'].append(self.account.balance)
@@ -536,5 +602,6 @@ class TradeSimEnv(gym.Env):
 
   #---------------------------------------------------------------------------
   def render(self, mode='human', close=False):
+    """ Not used in this implementation """
     return
 
