@@ -5,6 +5,7 @@ from gym.utils import seeding
 import numpy as np
 from enum import Flag, auto
 import copy
+import math
 
 
 # Let's define the Trading Environment class: TradeSimEnv    
@@ -15,17 +16,9 @@ class TradeSimEnv(gym.Env):
   # initialize some global constants: 
   # Trading action count
   NumActions = 5
-  # Observable input state count (without candlestick patterns)
-  NumStates = 12
 
-  # And other default values for inner class: AccountState and the Trading Platform emulator:
-  # Initial account equity
-  InitialEquity = 1000.0
-  # Fixed leverage 
-  Leverage = 1.0
-  # Fixed commissions
-  Commissions = 0.05
   # Fixed margin to set stoploss level above High prediction or below Low prediction
+  # example: 0.2 => 20% of the (High-Low) range.
   TakeStopMargin = 0.2
 
   # Rewards definitions:
@@ -318,17 +311,18 @@ class TradeSimEnv(gym.Env):
     # define the observation space:
     # predictions, quotes, account state and candlestick patterns
     self.observation_space = spaces.Dict({
-      'price_high' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
-      'price_low' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
-      'tick_ask' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
-      'tick_bid' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
-      'acc_balance': spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),      
-      'acc_floatpl' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
-      'acc_pl' : spaces.Box(low=0.0, high=1.0, shape=(), dtype=np.float32),
+      'price_high' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'price_low' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'tick_ask' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'tick_bid' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'acc_balance': spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),      
+      'acc_floatpl' : spaces.Box(low=-math.inf, high=math.inf, shape=(), dtype=np.float32),
+      'acc_pl' : spaces.Box(low=-math.inf, high=math.inf, shape=(), dtype=np.float32),
       'pos_long': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_short': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
-      'pos_price': spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32),
-      'pos_sl' :  spaces.Box(low=0, high=1.0, shape=(), dtype=np.float32)
+      'pos_price': spaces.Box(low=0, high=math.inf, shape=(), dtype=np.float32),
+      'pos_sl' :  spaces.Box(low=0, high=math.inf, shape=(), dtype=np.float32),
+      'cdl_patterns' :  spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
     }),
     self.obs = {}
     
@@ -357,10 +351,12 @@ class TradeSimEnv(gym.Env):
 
   #---------------------------------------------------------------------------
   def configure(self, 
-                steps_per_episode,      
-                max_price, 
-                max_balance, 
-                max_pl, 
+                steps_per_episode,  
+                instrument,
+                equity,
+                leverage,
+                commissions,    
+                num_cdl_patterns,
                 cb_pull_cdl_patterns,
                 cb_pull_predictions, 
                 cb_pull_ticks,
@@ -371,10 +367,13 @@ class TradeSimEnv(gym.Env):
     Args:
     -------
       steps_per_episode   : Num steps per episode
-      max_price           : Max price
-      max_balance         : Max balance
-      max_pl              : Max profit
-      cb_pull_cdl_patterns: Callback to get candlestick pattern detectors
+      instrument          : Financial instrument descriptive name
+      equity              : Initial equity value
+      leverage            : Leverage used per operation
+      commissions         : Fixed commissions applied after each operation
+      num_cdl_patterns    : Number of candlestick pattern detectors
+      cb_pull_cdl_patterns: Callback to get candlestick pattern detectors. Ej:
+                              def pull_cdl_patterns(step): return np.array([0,1,1,-1,...])
       cb_pull_predictions : Callback to get predictions. Ej:
                               def pull_predicted_data(step): return {'high':0.0, 'low':0.0}
       cb_pull_ticks       : Callback to get quotes. Ej:
@@ -384,17 +383,18 @@ class TradeSimEnv(gym.Env):
 
     # reinitialize observation space variables
     self.observation_space = spaces.Dict({
-      'price_high' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
-      'price_low' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
-      'tick_ask' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
-      'tick_bid' : spaces.Box(low=0.0, high=max_price, shape=(), dtype=np.float32),
-      'acc_balance': spaces.Box(low=0.0, high=max_balance, shape=(), dtype=np.float32),      
-      'acc_floatpl' : spaces.Box(low=0.0, high=max_pl, shape=(), dtype=np.float32),
-      'acc_pl' : spaces.Box(low=0.0, high=max_pl, shape=(), dtype=np.float32),
+      'price_high' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'price_low' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'tick_ask' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'tick_bid' : spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),
+      'acc_balance': spaces.Box(low=0.0, high=math.inf, shape=(), dtype=np.float32),      
+      'acc_floatpl' : spaces.Box(low=-math.inf, high=math.inf, shape=(), dtype=np.float32),
+      'acc_pl' : spaces.Box(low=-math.inf, high=math.inf, shape=(), dtype=np.float32),
       'pos_long': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
       'pos_short': spaces.Box(low=0, high=1, shape=(), dtype = np.uint8),
-      'pos_price': spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32),
-      'pos_sl' :  spaces.Box(low=0, high=max_price, shape=(), dtype=np.float32)
+      'pos_price': spaces.Box(low=0, high=math.inf, shape=(), dtype=np.float32),
+      'pos_sl' :  spaces.Box(low=0, high=math.inf, shape=(), dtype=np.float32),
+      'cdl_patterns' :  spaces.Box(low=-1, high=1, shape=(num_cdl_patterns, 1), dtype=np.float32)
     }),
     self.obs = {}
     
@@ -404,16 +404,14 @@ class TradeSimEnv(gym.Env):
     
     # get params
     self.num_steps = steps_per_episode
-    self.max_price = max_price
-    self.max_balance = max_balance
-    self.max_pl = max_pl
+    self.num_cdl_patterns = num_cdl_patterns
     self.cb_pull_cdl_patterns = cb_pull_cdl_patterns
     self.cb_pull_predictions = cb_pull_predictions
     self._enable_stats = enable_stats
     
     # init variables and create AccountStatus class
     self.steps = 0
-    self.account = TradeSimEnv.AccountStatus('EURUSD', TradeSimEnv.InitialEquity, TradeSimEnv.Leverage, TradeSimEnv.Commissions, cb_pull_ticks, cb_market_info)
+    self.account = TradeSimEnv.AccountStatus(instrument, equity, leverage, commissions, cb_pull_ticks, cb_market_info)
 
 
   #---------------------------------------------------------------------------
@@ -433,9 +431,14 @@ class TradeSimEnv(gym.Env):
 
   #---------------------------------------------------------------------------
   def _get_state(self):
+    # prepare observation container
     obs = {}
+    # get last predictions
     hilo_dict = self.cb_pull_predictions(self.steps)
+    # get last candlestick patterns
     cdl_patterns = self.cb_pull_cdl_patterns(self.step)
+
+    # build observation response
     obs['price_high'] = hilo_dict['high']
     obs['price_low'] =  hilo_dict['low']
     result = self.account.updateStat(self.steps)
@@ -448,8 +451,7 @@ class TradeSimEnv(gym.Env):
     obs['pos_short']    = 0 if self.account.position is None else (1 if self.account.position['type']=='short' else 0)
     obs['pos_price']    = 0 if self.account.position is None else self.account.position['price']
     obs['pos_sl']       =  0 if self.account.position is None else self.account.position['sl']
-    for c in len(cdl_patterns):
-      obs['cdl_'+str(c)] = cdl_patterns[c]
+    obs['cdl_patterns'] =  cdl_patterns
     return obs, result
 
 
@@ -467,11 +469,11 @@ class TradeSimEnv(gym.Env):
     action_list = ['none', 'open_long', 'close_long', 'open_short', 'close_short']
     result = TradeSimEnv.AccountStatus.Signals.NoSignals
     if action_list[action] == 'open_long':      
-      result |= self.account.openPosition(type='long', sl=sl_below, tp=None)
+      result |= self.account.openPosition(type='long', sl=sl_below)
     elif action_list[action] == 'close_long':
       result |= self.account.closePosition(type='long')
     elif action_list[action] == 'open_short':
-      result |= self.account.openPosition(type='short', sl=sl_above, tp=None)
+      result |= self.account.openPosition(type='short', sl=sl_above)
     elif action_list[action] == 'close_short':
       result |= self.account.closePosition(type='short')
     return result

@@ -21,6 +21,9 @@ As a development guide, I am using PYTHON language and these most representative
 
 
 -------------------------------------------------- --------------------------------------------
+##### 10.01.2019 -> commit: "Updated Gym environment v0.0.6"
+- [x] Updated environment,and associated notebook.
+-------------------------------------------------- --------------------------------------------
 ##### 09.01.2019 -> commit: "Updating Trading environment with candlestick patterns"
 - [x] Updating environment, csv backup, notebooks, etc.
 -------------------------------------------------- --------------------------------------------
