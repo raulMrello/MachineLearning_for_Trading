@@ -436,7 +436,7 @@ class TradeSimEnv(gym.Env):
     # get last predictions
     hilo_dict = self.cb_pull_predictions(self.steps)
     # get last candlestick patterns
-    cdl_patterns = self.cb_pull_cdl_patterns(self.step)
+    cdl_patterns = self.cb_pull_cdl_patterns(self.steps)
 
     # build observation response
     obs['price_high'] = hilo_dict['high']

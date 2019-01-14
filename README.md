@@ -21,6 +21,10 @@ As a development guide, I am using PYTHON language and these most representative
 
 
 -------------------------------------------------- --------------------------------------------
+##### 14.01.2019 -> commit: "Fixed bug in gym environment (v0.0.7) and added Agent's source code"
+- [x] Fix bug in Gym environment.
+- [x] Add A3C_LSTM.py with agent's implementation.
+-------------------------------------------------- --------------------------------------------
 ##### 10.01.2019 -> commit: "Updated Gym environment v0.0.6"
 - [x] Updated environment,and associated notebook.
 -------------------------------------------------- --------------------------------------------
