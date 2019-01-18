@@ -50,7 +50,7 @@ class Brain:
   #------------------------------------------------------------------------------
   def _build_model(self):
     """ Build the A3C-LSTM neural net """
-    l_input = Input( input_shape=(self.lbw, self.num_state))
+    l_input = Input(shape=(self.lbw, self.num_state))
     l_lstm1 = LSTM(64, return_sequences=True)(l_input)
     l_lstm2 = LSTM(64, return_sequences=True)(l_lstm1)
     l_lstm3 = LSTM(64, return_sequences=False)(l_lstm2)
