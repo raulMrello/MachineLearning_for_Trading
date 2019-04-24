@@ -1,3 +1,6 @@
 [submodule "python-mt5-zmq/mql-zmq"]
 	path = python-mt5-zmq/mql-zmq
 	url = https://github.com/dingmaotu/mql-zmq
+[submodule "python-mt5-zmq/dwx-zeromq-connector"]
+	path = python-mt5-zmq/dwx-zeromq-connector
+	url = https://github.com/darwinex/dwx-zeromq-connector
