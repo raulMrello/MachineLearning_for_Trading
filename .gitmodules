@@ -3,7 +3,7 @@
 	url = https://github.com/dingmaotu/mql-zmq
 [submodule "python-mt5-zmq/dwx-zeromq-connector"]
 	path = python-mt5-zmq/dwx-zeromq-connector
-	url = https://github.com/darwinex/dwx-zeromq-connector
+	url = https://github.com/raulMrello/dwx-zeromq-connector
 [submodule "python-mt5-zmq/mql4-lib"]
 	path = python-mt5-zmq/mql4-lib
 	url = https://github.com/dingmaotu/mql4-lib
