@@ -65,7 +65,7 @@ import os
 import sys
 import math
 import pickle
-
+from enum import Enum
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
@@ -159,6 +159,125 @@ def load_hist(filename, **kwargs):
     df = df.reset_index()
     df = df.rename(index=str, columns={"index": "TIMESTAMP"})
   return df
+  
+
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def ZIGZAG(df, minbars=5, verbose=False):
+  class ActionCtrl():
+    class ActionType(Enum):
+      NoActions = 0
+      SearchingHigh = 1
+      SearchingLow = 2
+    def __init__(self, high, low, idx, delta, verbose=False):
+      self.curr = ActionCtrl.ActionType.NoActions
+      self.last_high = high
+      self.last_high_idx = idx
+      self.last_low = low
+      self.last_low_idx = idx
+      self.delta = pd.Timedelta(value=delta)
+      self.x = []
+      self.y = []
+      self.verbose = verbose
+      if self.verbose:
+        print('New action at idx={}: last_high={}, last_low={}, min-delta={}'.format(idx, self.last_high, self.last_low, self.delta))
+
+    def config(self, min_bars=1, min_percentage=0.0):
+      self.min_bars = min_bars
+      self.min_percentage = min_percentage
+
+    # this function updates HIGH values or LOW values with last recorded depending on the current action
+    def zigzag(self, x, df):
+      log = 'Procesing row={}'.format(x.name)
+
+      # check if HIGH must be updated
+      if self.curr == ActionCtrl.ActionType.SearchingHigh and x.HIGH > self.last_high:
+        self.last_high = x.HIGH
+        self.last_high_idx = x.name
+        log += ' new HIGH={}'.format(x.HIGH)          
+        if self.verbose:
+          print(log)
+        return self.curr
+
+      # check if LOW must be updated
+      if self.curr == ActionCtrl.ActionType.SearchingLow and x.LOW < self.last_low:
+        self.last_low = x.LOW
+        self.last_low_idx = x.name
+        log += ' new LOW={}'.format(x.LOW)
+        if self.verbose:
+          print(log)
+        return self.curr
+
+      # check if search HIGH starts
+      if self.curr != ActionCtrl.ActionType.SearchingHigh and x.HIGH > x.IND_BB_UPPER:
+        # check delta condition
+        curr_delta = pd.Timedelta(x.name - self.last_low_idx)
+        if curr_delta < self.delta:
+          log += ' search-high DISCARD. curr-delta={}'.format(curr_delta) 
+          if self.verbose:
+            print(log)
+          return self.curr
+        # save last low
+        df.ZIGZAG.iloc[df.index == self.last_low_idx] = self.last_low
+        self.x.append(self.last_low_idx)
+        self.y.append(self.last_low)
+        # starts high recording
+        self.curr = ActionCtrl.ActionType.SearchingHigh
+        self.last_high = x.HIGH
+        self.last_high_idx = x.name
+        log += ' save ZIGZAG={} at={}, fist HIGH={}'.format(self.last_low, self.last_low_idx, x.HIGH)    
+        if self.verbose:
+          print(log)
+        return self.curr
+
+      # check if search LOW starts
+      if self.curr != ActionCtrl.ActionType.SearchingLow and x.LOW < x.IND_BB_LOWER:
+        # check delta condition
+        curr_delta = pd.Timedelta(x.name - self.last_high_idx)
+        if curr_delta < self.delta:
+          log += ' search-low DISCARD. curr-delta={}'.format(curr_delta) 
+          if self.verbose:
+            print(log)
+          return self.curr
+        # save last high
+        df.ZIGZAG.iloc[df.index == self.last_high_idx] = self.last_high
+        self.x.append(self.last_high_idx)
+        self.y.append(self.last_high)
+        # starts low recording
+        self.curr = ActionCtrl.ActionType.SearchingLow
+        self.last_low = x.LOW
+        self.last_low_idx = x.name
+        log += ' save ZIGZAG={} at={}, first LOW={}'.format(self.last_high, self.last_high_idx, x.LOW)        
+        if self.verbose:
+          print(log)
+        return self.curr
+
+      if self.curr == ActionCtrl.ActionType.SearchingLow:
+        log += ' curr LOW={}'.format(self.last_low)
+      elif self.curr == ActionCtrl.ActionType.SearchingHigh:
+        log += ' curr HIGH={}'.format(self.last_high)
+      if self.verbose:
+        print(log)
+      return self.curr    
+
+  # Initially no actions are in progress, record first high and low values creating an ActionCtrl object
+  action = ActionCtrl(
+            high=df['HIGH'][0], 
+            low = df['LOW'][0], 
+            idx = df.iloc[0].name, 
+            delta=minbars*(df.iloc[1].name-df.iloc[0].name))
+  upperband, middleband, lowerband = talib.BBANDS(df['CLOSE'], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+  _df = df[['OPEN','HIGH','LOW','CLOSE']].copy()
+  _df['IND_BB_UPPER'] = upperband
+  _df['IND_BB_MIDDLE'] = middleband
+  _df['IND_BB_LOWER'] = lowerband
+  _df.dropna(inplace=True)
+
+  _df['ZIGZAG'] = np.nan
+  _df['ACTION'] = ActionCtrl.ActionType.NoActions
+  _df['ACTION'] = _df.apply(lambda x: action.zigzag(x, _df), axis=1)
+  return _df.copy(), action.x, action.y
 
   
 
