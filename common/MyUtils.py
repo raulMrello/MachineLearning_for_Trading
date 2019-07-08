@@ -225,8 +225,8 @@ def ZIGZAG(df, minbars=5, nan_value = np.nan, verbose=False):
           if self.verbose:
             print(log)
           return self.__result()
-        # save last low
-        df.ZIGZAG.iloc[df.index == self.last_low_idx] = self.last_low
+        # save last low     
+        df.at[self.last_low_idx,'ZIGZAG'] =  self.last_low   
         self.x.append(self.last_low_idx)
         self.y.append(self.last_low)
         # starts high recording
@@ -248,7 +248,7 @@ def ZIGZAG(df, minbars=5, nan_value = np.nan, verbose=False):
             print(log)
           return self.__result()
         # save last high
-        df.ZIGZAG.iloc[df.index == self.last_high_idx] = self.last_high
+        df.at[self.last_high_idx,'ZIGZAG'] =  self.last_high
         self.x.append(self.last_high_idx)
         self.y.append(self.last_high)
         # starts low recording
@@ -268,14 +268,9 @@ def ZIGZAG(df, minbars=5, nan_value = np.nan, verbose=False):
         print(log)
       return self.__result()    
 
-  # Initially no actions are in progress, record first high and low values creating an ActionCtrl object
-  action = ActionCtrl(
-            high=df['HIGH'][0], 
-            low = df['LOW'][0], 
-            idx = df.iloc[0].name, 
-            delta=minbars*(df.iloc[1].name-df.iloc[0].name))
+  # copy dataframe and calculate bollinger bands if not yet present
   _df = df.copy()
-  if 'BOLLINGER_HI' in _df.columns and 'BOLLINGER_MA' in _df.columns and 'BOLLINGER_LO' in _df.columns:
+  if 'BOLLINGER_HI' and 'BOLLINGER_MA' and 'BOLLINGER_LO' in _df.columns:
     upperband, middleband, lowerband = _df.BOLLINGER_HI, _df.BOLLINGER_MA, _df.BOLLINGER_LO
     _df['BOLLINGER_HI'] = upperband
     _df['BOLLINGER_MA'] = middleband
@@ -285,12 +280,23 @@ def ZIGZAG(df, minbars=5, nan_value = np.nan, verbose=False):
     _df['BOLLINGER_HI'] = upperband
     _df['BOLLINGER_MA'] = middleband
     _df['BOLLINGER_LO'] = lowerband
-    _df.dropna(inplace=True)
+  _df.dropna(inplace=True)
+
+  # Initially no actions are in progress, record first high and low values creating an ActionCtrl object
+  action = ActionCtrl(
+            high= _df['HIGH'][0], 
+            low = _df['LOW'][0], 
+            idx = _df.iloc[0].name, 
+            delta= minbars*(_df.iloc[1].name - _df.iloc[0].name))
 
   _df['ZIGZAG'] = nan_value
   _df['ACTION'] = 'no-action'
   _df['ACTION'] = _df.apply(lambda x: action.zigzag(x, _df), axis=1)
-  return _df[['ZIGZAG', 'ACTION']].copy(), action.x, action.y
+  # fills last element as pending
+  if _df.ZIGZAG[-1] == nan_value:
+    _df.at[_df.index[-1],'ZIGZAG'] =  action.last_high if _df.ACTION[-1] == 'high' else action.last_low
+    _df.at[_df.index[-1],'ACTION'] =  _df.ACTION[-1] + '-in-progress'
+  return _df[['BOLLINGER_HI', 'BOLLINGER_MA', 'BOLLINGER_LO', 'ZIGZAG', 'ACTION']].copy(), action.x, action.y
 
   
 
