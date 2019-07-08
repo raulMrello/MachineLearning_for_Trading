@@ -101,6 +101,48 @@ def static_vars(**kwargs):
     return func
   return decorate
 
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------
+def mergeDataframes(df1, df2, df3, prefixes = ['df1_', 'df2_', 'df3_']):
+  """ Merges 3 dataframes using column TIME as key for merging with inner
+      merging method. Fills NaN with ffill.
+  """
+  # set same timestamp limits
+  first_row = max(_df1.TIME.iloc[0], _df2.TIME.iloc[0], _df3.TIME.iloc[0])
+  last_row = max(_df1.TIME.iloc[-1], _df2.TIME.iloc[-1], _df3.TIME.iloc[-1])
+  _df1 = df1[(df1.TIME >= first_row) & (df1.TIME <= last_row)].copy()
+  _df2 = df2[(df2.TIME >= first_row) & (df2.TIME <= last_row)].copy()
+  _df3 = df3[(df3.TIME >= first_row) & (df3.TIME <= last_row)].copy()
+  # rename columns
+  cols = []
+  for c in _df1.columns:
+    if c == 'TIME':
+      cols.append(c)
+    else:
+      cols.append('{}{}'.format(prefixes[0], c))
+  _df1.columns = cols
+  cols = []
+  for c in _df2.columns:
+    if c == 'TIME':
+      cols.append(c)
+    else:
+      cols.append('{}{}'.format(prefixes[1], c))
+  _df2.columns = cols
+  cols = []
+  for c in _df3.columns:
+    if c == 'TIME':
+      cols.append(c)
+    else:
+      cols.append('{}{}'.format(prefixes[2], c))
+  _df3.columns = cols
+  # merge dataframes
+  _df23 = _df2.merge(_df3, on='TIME', how='inner', suffixes=('',''))
+  _df123 = _df1.merge(_df23, on='TIME', how='inner', suffixes=('',''))
+  _df123.fillna(inplace=True, method='ffill')
+  return _df123
+
+
 
 #--------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------
