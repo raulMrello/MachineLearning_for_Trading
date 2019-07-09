@@ -155,6 +155,7 @@ class ZIGZAG_Signal_Listener():
             log += ' ERR_DELTA \/ ={}' .format(curr_delta)
             df.at[self.last_high_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_high_idx,'ACTION'] =  'high'
+            df.loc[self.last_high_idx:x.name, 'FLIP'] = False
             if max_value > self.last_high:
               log += ' replace_HIGH @[{}]=>{}'.format(self.last_high_idx,max_value)               
               self.last_high = max_value
@@ -177,7 +178,8 @@ class ZIGZAG_Signal_Listener():
             #self.beforelast_high_idx = self.last_high_idx
             self.last_high = max_value
             self.last_high_idx = x.name
-            log += ' save LOW @[{}]={}, new HIGH=>{}'.format(self.last_low_idx, self.last_low, max_value)    
+            log += ' save LOW @[{}]={}, (FLIP) new HIGH=>{}'.format(self.last_low_idx, self.last_low, max_value)    
+            df.at[x.name,'FLIP'] =  True
             self.__logger.debug(log)
           return self.__result()
 
@@ -195,6 +197,7 @@ class ZIGZAG_Signal_Listener():
             log += ' ERR_DELTA /\ ={}' .format(curr_delta) 
             df.at[self.last_low_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_low_idx,'ACTION'] =  'low'
+            df.loc[self.last_high_idx:x.name, 'FLIP'] = False
             if min_value < self.last_low:
               log += ' replace_LOW @[{}]=>{}'.format(self.last_low_idx,min_value)              
               self.last_low = min_value
@@ -217,7 +220,8 @@ class ZIGZAG_Signal_Listener():
             #self.beforelast_low_idx = self.last_low_idx
             self.last_low = min_value
             self.last_low_idx = x.name
-            log += ' save HIGH @[{}]={}, new LOW=>{}'.format(self.last_high_idx, self.last_high, min_value)        
+            log += ' save HIGH @[{}]={}, (FLIP) new LOW=>{}'.format(self.last_high_idx, self.last_high, min_value)        
+            df.at[x.name,'FLIP'] =  True
             self.__logger.debug(log)
           return self.__result()
 
@@ -275,6 +279,7 @@ class ZIGZAG_Signal_Listener():
 
     _df['ZIGZAG'] = nan_value
     _df['ACTION'] = 'no-action'
+    _df['FLIP'] = False
     _df['ACTION'] = _df.apply(lambda x: action.zigzag(x, _df), axis=1)
 
     # fills last element as pending

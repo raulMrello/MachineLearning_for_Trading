@@ -752,20 +752,20 @@ class FuzzyMarketState():
           # check double divergence
           if df.ZIGZAG.iloc[reg_bear_div.idoubfrom] < df.ZIGZAG.iloc[reg_bear_div.ifrom] and _macd_max_2from_v > _macd_max_from_v:
             log += 'doub-reg-bear-div on macd ifrom {} to {}'.format(_macd_max_2from_i, _macd_max_from_i)
-            df.DIV_DOUB_REG_BEAR_MACD.iloc[_macd_max_2from_i:_macd_max_to_i] = 1.0
+            df.loc[_macd_max_2from_i:_macd_max_to_i,'DIV_DOUB_REG_BEAR_MACD'] = 1.0
           # else simple divergence
           else:
             log += 'reg-bear-div on macd ifrom {} to {}'.format(_macd_max_from_i, _macd_max_to_i)
-            df.DIV_REG_BEAR_MACD.iloc[_macd_max_from_i:_macd_max_to_i] = 1.0
+            df.loc[_macd_max_from_i:_macd_max_to_i, 'DIV_REG_BEAR_MACD'] = 1.0
         if _rsi_max_from_v > _rsi_max_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[reg_bear_div.idoubfrom] < df.ZIGZAG.iloc[reg_bear_div.ifrom] and _rsi_max_2from_v > _rsi_max_from_v:
             log += 'doub-reg-bear-div on rsi ifrom {} to {}'.format(_rsi_max_2from_i, _rsi_max_to_i)
-            df.DIV_DOUB_REG_BEAR_RSI.iloc[_rsi_max_2from_i:_rsi_max_to_i] = 1.0
+            df.loc[_rsi_max_2from_i:_rsi_max_to_i, 'DIV_DOUB_REG_BEAR_RSI'] = 1.0
           # else simple divergence
           else:
             log += 'reg-bear-div on rsi ifrom {} to {}'.format(_rsi_max_from_i, _rsi_max_to_i)
-            df.DIV_REG_BEAR_RSI.iloc[_rsi_max_from_i:_rsi_max_to_i] = 1.0
+            df.loc[_rsi_max_from_i:_rsi_max_to_i, 'DIV_REG_BEAR_RSI'] = 1.0
 
       # checking hidden-bearish-div 
       if hid_bear_div.enabled==True:
@@ -790,20 +790,20 @@ class FuzzyMarketState():
           # check double divergence
           if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _macd_max_2from_v < _macd_max_from_v:
             log += 'doub-hid-bear-div on macd ifrom {} to {}'.format(_macd_max_2from_i, _macd_max_to_i)
-            df.DIV_DOUB_HID_BEAR_MACD.iloc[_macd_max_2from_i:_macd_max_to_i] = 1.0
+            df.loc[_macd_max_2from_i:_macd_max_to_i, 'DIV_DOUB_HID_BEAR_MACD'] = 1.0
           # else simple divergence
           else:
             log += 'hid-bear-div on macd ifrom {} to {}'.format(_macd_max_from_i, _macd_max_to_i)
-            df.DIV_HID_BEAR_MACD.iloc[_macd_max_from_i:_macd_max_to_i] = 1.0
+            df.loc[_macd_max_from_i:_macd_max_to_i, 'DIV_HID_BEAR_MACD'] = 1.0
         if _rsi_max_from_v < _rsi_max_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _rsi_max_2from_v < _rsi_max_from_v:
             log += 'doub-hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_2from_i, _rsi_max_to_i)
-            df.DIV_DOUB_HID_BEAR_RSI.iloc[_rsi_max_2from_i:_rsi_max_to_i] = 1.0
+            df.loc[_rsi_max_2from_i:_rsi_max_to_i, 'DIV_DOUB_HID_BEAR_RSI'] = 1.0
           # else simple divergence
           else:
             log += 'hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_from_i, _rsi_max_to_i)
-            df.DIV_HID_BEAR_RSI.iloc[_rsi_max_from_i:_rsi_max_to_i] = 1.0
+            df.loc[_rsi_max_from_i:_rsi_max_to_i, 'DIV_HID_BEAR_RSI'] = 1.0
 
       # checking hidden-bullish-div
       if hid_bull_div.enabled==True:
@@ -828,20 +828,20 @@ class FuzzyMarketState():
           # check double divergence
           if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _macd_min_2from_v > _macd_min_from_v:
             log += 'doub-hid-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
-            df.DIV_DOUB_HID_BULL_MACD.iloc[_macd_min_2from_i:_macd_min_to_i] = 1.0
+            df.loc[_macd_min_2from_i:_macd_min_to_i, 'DIV_DOUB_HID_BULL_MACD'] = 1.0
           # else simple divergence
           else:
             log += 'hid-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
-            df.DIV_HID_BULL_MACD.iloc[_macd_min_from_i:_macd_min_to_i] = 1.0
+            df.loc[_macd_min_from_i:_macd_min_to_i, 'DIV_HID_BULL_MACD'] = 1.0
         if _rsi_min_from_v > _rsi_min_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _rsi_min_2from_v > _rsi_min_from_v:
             log += 'doub-hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
-            df.DIV_DOUB_HID_BULL_RSI.iloc[_rsi_min_2from_i:_rsi_min_to_i] = 1.0
+            df.loc[_rsi_min_2from_i:_rsi_min_to_i, 'DIV_DOUB_HID_BULL_RSI'] = 1.0
           # else simple divergence
           else:
             log += 'hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
-            df.DIV_HID_BULL_RSI.iloc[_rsi_min_from_i:_rsi_min_to_i] = 1.0
+            df.loc[_rsi_min_from_i:_rsi_min_to_i, 'DIV_HID_BULL_RSI'] = 1.0
 
       # checking regular-bullish-div
       if reg_bull_div.enabled==True:
@@ -866,22 +866,22 @@ class FuzzyMarketState():
           # check double divergence
           if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _macd_min_2from_v < _macd_min_from_v:
             log += 'doub-reg-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
-            df.DIV_DOUB_REG_BULL_MACD.iloc[_macd_min_2from_i:_macd_min_to_i] = 1.0
+            df.loc[_macd_min_2from_i:_macd_min_to_i, 'DIV_DOUB_REG_BULL_MACD'] = 1.0
           # else simple divergence
           else:
             log += 'reg-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
-            df.DIV_REG_BULL_MACD.iloc[_macd_min_from_i:_macd_min_to_i] = 1.0
+            df.loc[_macd_min_from_i:_macd_min_to_i, 'DIV_REG_BULL_MACD'] = 1.0
         
         # checking regular-bullish-div
         if _rsi_min_from_v < _rsi_min_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _rsi_min_2from_v < _rsi_min_from_v:
             log += 'doub-reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
-            df.DIV_DOUB_REG_BULL_RSI.iloc[_rsi_min_2from_i:_rsi_min_to_i] = 1.0
+            df.loc[_rsi_min_2from_i:_rsi_min_to_i, 'DIV_DOUB_REG_BULL_RSI'] = 1.0
           # else simple divergence
           else:
             log += 'reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
-            df.DIV_REG_BULL_RSI.iloc[_rsi_min_from_i:_rsi_min_to_i] = 1.0
+            df.loc[_rsi_min_from_i:_rsi_min_to_i, 'DIV_REG_BULL_RSI'] = 1.0
 
       logger.debug(log)
       return
@@ -1013,7 +1013,30 @@ class FuzzyMarketState():
     trace_ohlc = go.Ohlc(x=self.__df.index.values, open=self.__df.OPEN, high=self.__df.HIGH, low=self.__df.LOW, close=self.__df.CLOSE, name='Candlestick')
     _dfz = self.__df[self.__df.ZIGZAG > 0].copy()
     trace_zigzag = go.Scatter(x=_dfz.reset_index()['index'], y=_dfz.ZIGZAG, name='zigzag', line=scatter.Line(color=color, width=1))
-    return [trace_ohlc, trace_zigzag]
+    flip_shapes = []
+    def flips_builder(x, flips):
+      if x.FLIP == True:
+        flips.append({
+            'type': 'line',
+            'x0': x.name,
+            'y0': 0,
+            'x1': x.name,
+            'y1': x.HIGH,
+            'line': {
+                'color': 'blue',
+                'width': 1,
+                'dash': 'dashdot',
+            }})
+    self.__df.apply(lambda x: flips_builder(x, flip_shapes), axis=1)
+    fig = go.Figure(data=[trace_ohlc, trace_zigzag])
+    fig['layout'].update(height=600, title='Zigzag')
+    fig['layout'].update(shapes=flip_shapes)   
+    mx = np.max(self.__df.HIGH)
+    mn = np.min(self.__df.LOW)
+    r = mx - mn    
+    fig['layout'].update(yaxis=dict(range=[mn - (r/2), mx + (r/2)]))
+
+    return fig, [trace_ohlc, trace_zigzag], flip_shapes
 
 
   #-------------------------------------------------------------------
