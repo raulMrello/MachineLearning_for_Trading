@@ -1,1 +1,5 @@
 FuzzyModel/csv_data/*.*
+FuzzyModel/csv_data/indicators/*.*
+FuzzyModel/csv_data/indicators/fuzzified/*.*
+FuzzyModel/csv_data/indicators/fuzzified/merged/*.*
+FuzzyModel/csv_data/indicators/fuzzified/merged/filtered/*.*
