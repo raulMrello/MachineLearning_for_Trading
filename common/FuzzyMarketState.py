@@ -47,8 +47,7 @@ import skfuzzy.control as ctrl
 
 ####################################################################################
 # Librerías de visualización
-import plotly
-import plotly.plotly as py
+import plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import *
 from plotly.tools import FigureFactory as FF
@@ -104,7 +103,7 @@ class FuzzyMarketState():
   #-------------------------------------------------------------------
   def loadCSV(self, file, sep=';'):    
     """ Loads a csv file imported from the trading platform with this
-        columns: DATE,TIME,OPEN,HIGH,LOW,CLOSE,TICKVOL,VOL,SPREAD.
+        columns: DATE[,TIME],OPEN,HIGH,LOW,CLOSE,TICKVOL,VOL,SPREAD.
         DATE and TIME are converted to datetime as new column TIME, and
         index is reset to start from sample 0.
       
@@ -115,7 +114,10 @@ class FuzzyMarketState():
         num_rows -- number of rows loaded        
     """
     _df = pd.read_csv(file, sep)
-    _df['TIME'] = _df['DATE'] + '  ' + _df['TIME'] 
+    if 'TIME' in _df.columns:
+      _df['TIME'] = _df['DATE'] + '  ' + _df['TIME'] 
+    else:
+      _df['TIME'] = _df['DATE'] + '  00:00:00'
     _df['TIME'] = _df['TIME'].map(lambda x: datetime.datetime.strptime(x, '%Y.%m.%d %H:%M:%S'))  
     _df['TIME'] = pd.to_datetime(_df['TIME'])
     self.__df = _df.drop(columns=['DATE'])
@@ -682,48 +684,83 @@ class FuzzyMarketState():
         reg_bear_div.ifrom = row.P3_idx
         reg_bear_div.idoubfrom = row.P5_idx
         reg_bear_div.to   = row.P1_idx
+        _rng1 = int((reg_bear_div.to - reg_bear_div.ifrom)/3)
+        _rng2 = int((reg_bear_div.ifrom - reg_bear_div.idoubfrom)/3)
+        if reg_bear_div.idoubfrom - _rng2 <= 0:
+          reg_bear_div.enabled=False
       # other regular-bearish-div condition
       elif row.P2 > row.P4 and row.P3 > row.P5 and row.P1 < row.P2:
         reg_bear_div.enabled=True
         reg_bear_div.ifrom = row.P4_idx
         reg_bear_div.idoubfrom = row.P6_idx
         reg_bear_div.to   = row.P2_idx
+        _rng1 = int((reg_bear_div.to - reg_bear_div.ifrom)/3)
+        _rng2 = int((reg_bear_div.ifrom - reg_bear_div.idoubfrom)/3)
+        if reg_bear_div.idoubfrom - _rng2 <= 0:
+          reg_bear_div.enabled=False
       # check hidden-bullish-div
       if row.P1 > row.P3 and row.P2 > row.P4 and row.P1 < row.P2:
         hid_bull_div.enabled=True
         hid_bull_div.ifrom = row.P3_idx
         hid_bull_div.idoubfrom = row.P5_idx
         hid_bull_div.to   = row.P1_idx
+        _rng1 = int((hid_bull_div.to - hid_bull_div.ifrom)/3)
+        _rng2 = int((hid_bull_div.ifrom - hid_bull_div.idoubfrom)/3)
+        if hid_bull_div.idoubfrom - _rng2 <= 0:
+          hid_bull_div.enabled=False
       # other hidden-bullish-div
       elif row.P2 > row.P4 and row.P3 > row.P5 and row.P1 > row.P2:
         hid_bull_div.enabled=True
         hid_bull_div.ifrom = row.P4_idx
         hid_bull_div.idoubfrom = row.P6_idx
         hid_bull_div.to   = row.P2_idx
+        _rng1 = int((hid_bull_div.to - hid_bull_div.ifrom)/3)
+        _rng2 = int((hid_bull_div.ifrom - hid_bull_div.idoubfrom)/3)
+        if hid_bull_div.idoubfrom - _rng2 <= 0:
+          hid_bull_div.enabled=False
+
       # check regular-bullish-div
       if row.P1 < row.P3 and row.P2 < row.P4 and row.P1 < row.P2:
         reg_bull_div.enabled=True
         reg_bull_div.ifrom = row.P3_idx
         reg_bull_div.idoubfrom = row.P5_idx
         reg_bull_div.to   = row.P1_idx
+        _rng1 = int((reg_bull_div.to - reg_bull_div.ifrom)/3)
+        _rng2 = int((reg_bull_div.ifrom - reg_bull_div.idoubfrom)/3)
+        if reg_bull_div.idoubfrom - _rng2 <= 0:
+          reg_bull_div.enabled=False
       # other regular-bullish-div condition
       elif row.P2 < row.P4 and row.P3 < row.P5 and row.P1 > row.P2:
         reg_bull_div.enabled=True
         reg_bull_div.ifrom = row.P4_idx
         reg_bull_div.idoubfrom = row.P6_idx
         reg_bull_div.to   = row.P2_idx
+        _rng1 = int((reg_bull_div.to - reg_bull_div.ifrom)/3)
+        _rng2 = int((reg_bull_div.ifrom - reg_bull_div.idoubfrom)/3)
+        if reg_bull_div.idoubfrom - _rng2 <= 0:
+          reg_bull_div.enabled=False
+
       # check hidden-bearish-div
       if row.P1 < row.P3 and row.P2 < row.P4 and row.P1 > row.P2:
         hid_bear_div.enabled=True
         hid_bear_div.ifrom = row.P3_idx
         hid_bear_div.idoubfrom = row.P5_idx
         hid_bear_div.to   = row.P1_idx
+        _rng1 = int((hid_bear_div.to - hid_bear_div.ifrom)/3)
+        _rng2 = int((hid_bear_div.ifrom - hid_bear_div.idoubfrom)/3)
+        if hid_bear_div.idoubfrom - _rng2 <= 0:
+          hid_bear_div.enabled=False
       # other hidden-bearish-div
       elif row.P2 < row.P4 and row.P3 < row.P5 and row.P1 < row.P2:
         hid_bear_div.enabled=True
         hid_bear_div.ifrom = row.P4_idx
         hid_bear_div.idoubfrom = row.P6_idx
         hid_bear_div.to   = row.P2_idx
+        _rng1 = int((hid_bear_div.to - hid_bear_div.ifrom)/3)
+        _rng2 = int((hid_bear_div.ifrom - hid_bear_div.idoubfrom)/3)
+        if hid_bear_div.idoubfrom - _rng2 <= 0:
+          hid_bear_div.enabled=False
+
 
       # MACD check---      
       # checking regular-bearish-div
@@ -743,6 +780,7 @@ class FuzzyMarketState():
 
         _macd_max_to_i = min(df.MACD_main[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax(), df.index.values[-1])
         _macd_max_from_i = df.MACD_main[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].idxmax()
+        logger.debug('reg_bear_div.idoubfrom={}, rng2={}'.format(reg_bear_div.idoubfrom,_rng2))
         _macd_max_2from_i = df.MACD_main[reg_bear_div.idoubfrom - _rng2 : reg_bear_div.idoubfrom + _rng2].idxmax()
         _rsi_max_to_i = min(df.RSI[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax(), df.index.values[-1])
         _rsi_max_from_i = df.RSI[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].idxmax()
@@ -1923,18 +1961,51 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def fuzzifyMovingAverages(self, timeperiod=4):
+  def fuzzifyMovingAverages(self, timeperiod=4, loopback_bb_mult = 25):
     """ Fuzzifies SMA_BULLISH_TREND and SMA_BEARISH_TREND into these fuzzy sets:
         - NoTrend
         - SmallTrend
         - MediumTrend
         - HighTrend
+        Also builds one column for each SMA showing if price is near to each one.
+        These variables are named: SMA_SLOW_DISTANCE, SMA_MID_DISTANCE and SMA_FAST_DISTANCE, with
+        fuzzy sets:
+        - FarAbove
+        - NearAbove
+        - Touching
+        - NearBelow
+        - FarBelow
+
        Return:
         self.__df -- Updated dataframe      
     """
-    _df_result = self.__df[['SMA_BULLISH_TREND', 'SMA_BEARISH_TREND']].copy()
+    _df_result = self.__df[['SMA_BULLISH_TREND', 'SMA_BEARISH_TREND', 'SMA_SLOW', 'SMA_MID', 'SMA_FAST', 'CLOSE']].copy()
+    _df_result['SMA_SLOW_DISTANCE'] = _df_result['CLOSE'] - _df_result['SMA_SLOW']
+    _df_result['SMA_MID_DISTANCE'] = _df_result['CLOSE'] - _df_result['SMA_MID']
+    _df_result['SMA_FAST_DISTANCE'] = _df_result['CLOSE'] - _df_result['SMA_FAST']
     _df_result['SMA_BULLISH_TREND'] = talib.SMA(_df_result['SMA_BULLISH_TREND'], timeperiod=timeperiod)
     _df_result['SMA_BEARISH_TREND'] = talib.SMA(_df_result['SMA_BEARISH_TREND'], timeperiod=timeperiod)
+    _max_s = 0.25 * np.mean(np.clip(_df_result.SMA_SLOW_DISTANCE, 0.0, None))
+    _max_m = 0.25 * np.mean(np.clip(_df_result.SMA_MID_DISTANCE, 0.0, None))
+    _max_f = 0.25 * np.mean(np.clip(_df_result.SMA_FAST_DISTANCE, 0.0, None))
+
+    _df_result['sma_slow_up2'], _, _ = talib.BBANDS(np.clip(_df_result.SMA_SLOW_DISTANCE, _max_s, None), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _df_result['sma_mid_up2'], _, _ = talib.BBANDS(np.clip(_df_result.SMA_MID_DISTANCE, _max_m, None), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _df_result['sma_fast_up2'], _, _ = talib.BBANDS(np.clip(_df_result.SMA_FAST_DISTANCE, _max_f, None), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _df_result['sma_slow_up1'] = 0.1 * _df_result['sma_slow_up2']
+    _df_result['sma_mid_up1'] = 0.1 * _df_result['sma_mid_up2']
+    _df_result['sma_fast_up1'] = 0.1 * _df_result['sma_fast_up2']
+
+    _min_s = 0.25 * np.mean(np.clip(_df_result.SMA_SLOW_DISTANCE, None, 0.0))
+    _min_m = 0.25 * np.mean(np.clip(_df_result.SMA_MID_DISTANCE, None, 0.0))
+    _min_f = 0.25 * np.mean(np.clip(_df_result.SMA_FAST_DISTANCE, None, 0.0))
+    _, _, _df_result['sma_slow_dn2'] = talib.BBANDS(np.clip(_df_result.SMA_SLOW_DISTANCE, None, _min_s), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _, _, _df_result['sma_mid_dn2'] = talib.BBANDS(np.clip(_df_result.SMA_MID_DISTANCE, None, _min_m), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _, _, _df_result['sma_fast_dn2'] = talib.BBANDS(np.clip(_df_result.SMA_FAST_DISTANCE, None, _min_f), timeperiod=timeperiod*loopback_bb_mult, nbdevup=0.61, nbdevdn=0.61, matype=0)    
+    _df_result['sma_slow_dn1'] = 0.1 * _df_result['sma_slow_dn2']
+    _df_result['sma_mid_dn1'] = 0.1 * _df_result['sma_mid_dn2']
+    _df_result['sma_fast_dn1'] = 0.1 * _df_result['sma_fast_dn2']
+
     def fn_fuzzify_sma(x, df, logger):
       logger.debug('fuzzifying row[{}]=> crisp_bull={} crips_bear={}'.format(x.name, x.SMA_BULLISH_TREND, x.SMA_BEARISH_TREND))
       f_sets = [{'type':'left-edge',    'name':'NoTrend',     'p0': 0.0, 'p1': 0.2},
@@ -1960,7 +2031,61 @@ class FuzzyMarketState():
       df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S0'] = 0.0
       df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+1'] = 0.2
       df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+2'] = 0.5      
-      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+3'] = 1.0      
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+3'] = 1.0   
+
+      f_sets = [{'type':'left-edge',      'name':'FarBelow',   'p0': x.sma_slow_dn2, 'p1': x.sma_slow_dn1},
+                {'type':'internal-3pt',   'name':'NearBelow',  'p0': x.sma_slow_dn2, 'p1': x.sma_slow_dn1,  'p2': 0.0},
+                {'type':'internal-3pt',   'name':'Touching',   'p0': x.sma_slow_dn1, 'p1': 0.0,             'p2': x.sma_slow_up1},
+                {'type':'internal-3pt',   'name':'NearAbove',  'p0': 0.0,            'p1': x.sma_slow_up1,  'p2': x.sma_slow_up2},
+                {'type':'right-edge'  ,   'name':'FarAbove',   'p0': x.sma_slow_up1, 'p1': x.sma_slow_up2}]
+      fz1 = Fuzzifier.fuzzify(x.SMA_SLOW_DISTANCE, f_sets)
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE'] = x.SMA_SLOW_DISTANCE
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_G4'] = fz1[4]       
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_S-2'] = x.sma_slow_dn2
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_S-1'] = x.sma_slow_dn1
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_S0'] = 0.0
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_S+1'] = x.sma_slow_up1
+      df.at[x.name, 'FUZ_SMA_SLOW_DISTANCE_S+2'] = x.sma_slow_up2   
+
+      f_sets = [{'type':'left-edge',      'name':'FarBelow',   'p0': x.sma_mid_dn2, 'p1': x.sma_mid_dn1},
+                {'type':'internal-3pt',   'name':'NearBelow',  'p0': x.sma_mid_dn2, 'p1': x.sma_mid_dn1,  'p2': 0.0},
+                {'type':'internal-3pt',   'name':'Touching',   'p0': x.sma_mid_dn1, 'p1': 0.0,             'p2': x.sma_mid_up1},
+                {'type':'internal-3pt',   'name':'NearAbove',  'p0': 0.0,            'p1': x.sma_mid_up1,  'p2': x.sma_mid_up2},
+                {'type':'right-edge'  ,   'name':'FarAbove',   'p0': x.sma_mid_up1, 'p1': x.sma_mid_up2}]
+      fz1 = Fuzzifier.fuzzify(x.SMA_SLOW_DISTANCE, f_sets)
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE'] = x.SMA_MID_DISTANCE
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_G4'] = fz1[4]       
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_S-2'] = x.sma_mid_dn2
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_S-1'] = x.sma_mid_dn1
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_S0'] = 0.0
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_S+1'] = x.sma_mid_up1
+      df.at[x.name, 'FUZ_SMA_MID_DISTANCE_S+2'] = x.sma_mid_up2   
+
+      f_sets = [{'type':'left-edge',      'name':'FarBelow',   'p0': x.sma_fast_dn2, 'p1': x.sma_fast_dn1},
+                {'type':'internal-3pt',   'name':'NearBelow',  'p0': x.sma_fast_dn2, 'p1': x.sma_fast_dn1,  'p2': 0.0},
+                {'type':'internal-3pt',   'name':'Touching',   'p0': x.sma_fast_dn1, 'p1': 0.0,             'p2': x.sma_fast_up1},
+                {'type':'internal-3pt',   'name':'NearAbove',  'p0': 0.0,            'p1': x.sma_fast_up1,  'p2': x.sma_fast_up2},
+                {'type':'right-edge'  ,   'name':'FarAbove',   'p0': x.sma_fast_up1, 'p1': x.sma_fast_up2}]
+      fz1 = Fuzzifier.fuzzify(x.SMA_FAST_DISTANCE, f_sets)
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE'] = x.SMA_FAST_DISTANCE
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_G4'] = fz1[4]       
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_S-2'] = x.sma_fast_dn2
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_S-1'] = x.sma_fast_dn1
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_S0'] = 0.0
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_S+1'] = x.sma_fast_up1
+      df.at[x.name, 'FUZ_SMA_FAST_DISTANCE_S+2'] = x.sma_fast_up2   
            
     _df_result.apply(lambda x: fn_fuzzify_sma(x, self.__df, self.__logger), axis=1)
     return self.__df
@@ -2064,6 +2189,12 @@ class FuzzyMarketState():
       if abs(x.FIBO_CURR - 0.78) < nearest_value:
         nearest_value = abs(x.FIBO_CURR - 0.78)
         nearest_level = 'FUZ_FIBO_078' 
+
+      df.at[x.name, 'FUZ_FIBO_RETR_G0'] = df['{}_G0'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_G1'] = df['{}_G1'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_G2'] = df['{}_G2'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_G3'] = df['{}_G3'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_G4'] = df['{}_G4'.format(nearest_level)].iloc[x.name]
       df.at[x.name, 'FUZ_FIBO_RETR_S-2'] = df['{}_S-2'.format(nearest_level)].iloc[x.name]
       df.at[x.name, 'FUZ_FIBO_RETR_S-1'] = df['{}_S-1'.format(nearest_level)].iloc[x.name]    
       df.at[x.name, 'FUZ_FIBO_RETR_S0'] = df['{}_S0'.format(nearest_level)].iloc[x.name]
@@ -2143,6 +2274,11 @@ class FuzzyMarketState():
       if abs(x.FIBO_CURR - 1.78) < nearest_value:
         nearest_value = abs(x.FIBO_CURR - 1.78)
         nearest_level = 'FUZ_FIBO_178'        
+      df.at[x.name, 'FUZ_FIBO_EXTN_G0'] = df['{}_G0'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_G1'] = df['{}_G1'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_G2'] = df['{}_G2'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_G3'] = df['{}_G3'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_G4'] = df['{}_G4'.format(nearest_level)].iloc[x.name]
       df.at[x.name, 'FUZ_FIBO_EXTN_S-2'] = df['{}_S-2'.format(nearest_level)].iloc[x.name]
       df.at[x.name, 'FUZ_FIBO_EXTN_S-1'] = df['{}_S-1'.format(nearest_level)].iloc[x.name]    
       df.at[x.name, 'FUZ_FIBO_EXTN_S0'] = df['{}_S0'.format(nearest_level)].iloc[x.name]
@@ -2484,7 +2620,7 @@ class FuzzyMarketState():
     self.fuzzifyBollinger(timeperiod=50)
     self.fuzzifyMACD(timeperiod=500)
     self.fuzzifyRSI(timeperiod=500)
-    self.fuzzifyMovingAverages(timeperiod=14)
+    self.fuzzifyMovingAverages(timeperiod=14, loopback_bb_mult=7)
     self.fuzzifyFibo()
     self.fuzzifySRLevels(timeperiod=2000)
     self.fuzzifyChannel()

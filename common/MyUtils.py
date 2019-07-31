@@ -33,13 +33,14 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import r2_score
 
-import keras
-from keras.models import Model, Sequential
-from keras.layers import Input, LSTM, Dense, Dropout, BatchNormalization
-from keras.optimizers import Adam
-from keras.callbacks import TensorBoard, ModelCheckpoint
-from keras.optimizers import Adam
-from keras.constraints import max_norm
+import tensorflow as tf
+import tensorflow.keras as keras
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, BatchNormalization
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.constraints import max_norm
 
 ####################################################################################
 # Librerías de visualización
@@ -47,8 +48,7 @@ import matplotlib.pyplot as plt
 from matplotlib import dates, ticker
 from matplotlib.dates import (MONDAY, DateFormatter, MonthLocator, WeekdayLocator, date2num)
 import matplotlib as mpl
-import plotly
-import plotly.plotly as py
+import plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import Scatter, Layout
 import plotly.tools as tls
