@@ -33,8 +33,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import r2_score
 
-import tensorflow as tf
-import tensorflow.keras as keras
+import tensorflow.keras
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
@@ -48,7 +47,7 @@ import matplotlib.pyplot as plt
 from matplotlib import dates, ticker
 from matplotlib.dates import (MONDAY, DateFormatter, MonthLocator, WeekdayLocator, date2num)
 import matplotlib as mpl
-import plotly as py
+import chart_studio.plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import Scatter, Layout
 import plotly.tools as tls
@@ -109,11 +108,18 @@ def mergeDataframes(df1, df2, df3, prefixes = ['df1_', 'df2_', 'df3_']):
       merging method. Fills NaN with ffill.
   """
   # set same timestamp limits
-  first_row = max(_df1.TIME.iloc[0], _df2.TIME.iloc[0], _df3.TIME.iloc[0])
-  last_row = max(_df1.TIME.iloc[-1], _df2.TIME.iloc[-1], _df3.TIME.iloc[-1])
+  first_row = max(df1.TIME.iloc[0], df2.TIME.iloc[0], df3.TIME.iloc[0])
+  last_row = max(df1.TIME.iloc[-1], df2.TIME.iloc[-1], df3.TIME.iloc[-1])
   _df1 = df1[(df1.TIME >= first_row) & (df1.TIME <= last_row)].copy()
   _df2 = df2[(df2.TIME >= first_row) & (df2.TIME <= last_row)].copy()
   _df3 = df3[(df3.TIME >= first_row) & (df3.TIME <= last_row)].copy()
+  # ensure all has same timestamps
+  first_row = max(_df1.TIME.iloc[0], _df2.TIME.iloc[0], _df3.TIME.iloc[0])
+  last_row = max(_df1.TIME.iloc[-1], _df2.TIME.iloc[-1], _df3.TIME.iloc[-1])
+  _df1 = _df1[(_df1.TIME >= first_row) & (_df1.TIME <= last_row)]
+  _df2 = _df2[(_df2.TIME >= first_row) & (_df2.TIME <= last_row)]
+  _df3 = _df3[(_df3.TIME >= first_row) & (_df3.TIME <= last_row)]
+
   # rename columns
   cols = []
   for c in _df1.columns:
@@ -137,8 +143,8 @@ def mergeDataframes(df1, df2, df3, prefixes = ['df1_', 'df2_', 'df3_']):
       cols.append('{}{}'.format(prefixes[2], c))
   _df3.columns = cols
   # merge dataframes
-  _df23 = _df2.merge(_df3, on='TIME', how='inner', suffixes=('',''))
-  _df123 = _df1.merge(_df23, on='TIME', how='inner', suffixes=('',''))
+  _df23 = _df2.merge(_df3, on='TIME', how='left', suffixes=('',''))
+  _df123 = _df1.merge(_df23, on='TIME', how='left', suffixes=('',''))
   _df123.fillna(inplace=True, method='ffill')
   return _df123
 
